@@ -15,14 +15,14 @@ max_image_width = 16384
 max_image_height = 16384
 image_quality = 100
 expand_bsv3 = True  # If set to True, bsv3 files will be processed (leave this value set to 1 to get the animated sprites).
-individual_frames = False  # If set to True, individual frames will be made. If set to false, montage will be made.
+individual_frames = False  # If set to True, individual frames will be made. If set to false, a montage will be made.
 
 # Edit this if you want a different resulting image format.
 # You can choose between most of ImageMagick supported image formats like png32, tiff, jpg, etc.
 # Check ImageMagick documentation for more info about the image formats you can use.
 # Raw image formats are not supported though because it requires you to specify the depth and image size
 # of the image being processed beforehand.
-extension = "png"
+extension = "jxl"
 
 print("\n\n--- CONVERTING RGB FILES ---\n\n")
 
@@ -97,6 +97,8 @@ for zipfile in ziplist:
                 )
 
                 if frames is False:
+                    baseimage.save(filename=Path(target, f"{filename}.{extension}"))
+                    n += 1
                     continue
 
                 with frames["frames"] as frames_img:

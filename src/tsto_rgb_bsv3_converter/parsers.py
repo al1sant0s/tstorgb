@@ -1,4 +1,5 @@
 import numpy as np
+from copy import deepcopy
 from wand.image import Image
 
 
@@ -183,7 +184,10 @@ def bsv3_parser(bsv3_file, rgb_img, show_progress=False, prefix_str=""):
 
             # Get states info.
             statenumber = int.from_bytes(f.read(2), byteorder="little", signed=False)
-            states = [dict.fromkeys(["statename", "start", "end"])] * statenumber
+            states = [
+                deepcopy(dict.fromkeys(["state", "start", "end"]))
+                for _ in range(statenumber)
+            ]
 
             # Capture the frames.
             with Image() as frames_img:
