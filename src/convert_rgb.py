@@ -14,7 +14,7 @@ convertdir = "processed"
 max_image_width = 23000
 image_quality = 100
 expand_bsv3 = True  # If set to True, bsv3 files will be processed (leave this value set to 1 to get the animated sprites).
-individual_frames = False  # If set to True, individual frames will be made. If set to false, a montage will be made.
+individual_frames = True  # If set to True, individual frames will be made. If set to false, a montage will be made.
 
 # Edit this if you want a different resulting image format.
 # You can choose between most of ImageMagick supported image formats like png32, tiff, jpg, etc.
@@ -112,7 +112,6 @@ for zipfile in ziplist:
                                             f"{s['statename']}_{i}.{extension}",
                                         )
                                     )
-                                frames_img.image_remove()
 
                     else:
                         with Image() as big_montage_img:
@@ -137,7 +136,6 @@ for zipfile in ziplist:
                                                 color="darksalmon", width=5, height=5
                                             )
                                             montage_img.image_add(frame_img)
-                                    frames_img.image_remove()
                                     montage_img.background_color = "transparent"
                                     montage_img.montage(
                                         tile=f"{montage_max_ncol}x",
@@ -146,37 +144,31 @@ for zipfile in ziplist:
                                     montage_img.border(
                                         color="darksalmon", width=5, height=5
                                     )
-                                    montage_height[t] = montage_img.height
+                                    # Write state label.
+                                    montage_img.background_color = "indianred"
+                                    montage_img.splice(
+                                        x=0,
+                                        y=0,
+                                        width=0,
+                                        height=256,
+                                    )
+                                    with Drawing() as ctx:
+                                        ctx.font_family = "Alegreya ExtraBold"
+                                        ctx.font_style = "italic"
+                                        ctx.font_size = 200
+                                        ctx.text_kerning = 8
+                                        ctx.fill_color = "antiquewhite"
+                                        montage_img.annotate(
+                                            s["statename"],
+                                            ctx,
+                                            left=64,
+                                            baseline=190,
+                                        )
                                     big_montage_img.image_add(montage_img)
 
                             big_montage_img.background_color = "transparent"
-                            big_montage_img.montage(tile="1x", thumbnail="+0+0")
-                            big_montage_img.background_color = "indianred"
+                            big_montage_img.montage(thumbnail="+0+0")
                             big_montage_img.compression_quality = image_quality
-
-                            # Write labels in the montage.
-                            for s, t in zip(
-                                frames["states"], range(len(frames["states"]))
-                            ):
-                                yoffset = 256 * t + montage_height[0:t].sum()
-                                big_montage_img.splice(
-                                    x=0,
-                                    y=yoffset,
-                                    width=0,
-                                    height=256,
-                                )
-                                with Drawing() as ctx:
-                                    ctx.font_family = "Alegreya ExtraBold"
-                                    ctx.font_style = "italic"
-                                    ctx.font_size = 200
-                                    ctx.text_kerning = 8
-                                    ctx.fill_color = "antiquewhite"
-                                    big_montage_img.annotate(
-                                        s["statename"],
-                                        ctx,
-                                        left=64,
-                                        baseline=190 + yoffset,
-                                    )
 
                             # Save the final result.
                             finalresult = Path(target, f"{filename}.{extension}")
