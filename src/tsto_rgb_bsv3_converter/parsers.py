@@ -40,12 +40,16 @@ def rgb_parser(file, show_progress=False, prefix_str=""):
             depth=depth,
             format="rgba",
         ) as img:
-            # Swap collor channels.
-            rgb_img.image_add(img.channel_images["blue"])  # type: ignore
-            rgb_img.image_add(img.channel_images["alpha"])  # type: ignore
-            rgb_img.image_add(img.channel_images["red"])  # type: ignore
-            rgb_img.image_add(img.channel_images["green"])  # type: ignore
-            rgb_img.combine(colorspace="srgb")
+            # Swap collor channels for 4 bit depth.
+            if depth == 4:
+                rgb_img.image_add(img.channel_images["blue"])  # type: ignore
+                rgb_img.image_add(img.channel_images["alpha"])  # type: ignore
+                rgb_img.image_add(img.channel_images["red"])  # type: ignore
+                rgb_img.image_add(img.channel_images["green"])  # type: ignore
+                rgb_img.combine(colorspace="srgb")
+            # For 8 bit depth this is not necessary.
+            elif depth == 8:
+                rgb_img.image_add(img)
 
         # Revert alpha premultiply.
         rgb_img.image_set(rgb_img.fx("u/u.a", channel="rgb"))

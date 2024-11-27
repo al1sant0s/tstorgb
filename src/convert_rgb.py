@@ -14,7 +14,7 @@ convertdir = "processed"
 max_image_width = 23000
 image_quality = 100
 expand_bsv3 = True  # If set to True, bsv3 files will be processed (leave this value set to 1 to get the animated sprites).
-individual_frames = True  # If set to True, individual frames will be made. If set to false, a montage will be made.
+individual_frames = False  # If set to True, individual frames will be made. If set to false, a montage will be made.
 
 # Edit this if you want a different resulting image format.
 # You can choose between most of ImageMagick supported image formats like png32, tiff, jpg, etc.
@@ -118,13 +118,11 @@ for zipfile in ziplist:
                             max_number_frames = max(
                                 [s["end"] - s["start"] + 1 for s in frames["states"]]
                             )
+                            montage_max_nrow = int(np.sqrt(max_number_frames))
                             montage_max_ncol = int(
-                                np.ceil(
-                                    max_number_frames
-                                    / np.floor(np.sqrt(max_number_frames))
-                                )
+                                np.ceil(max_number_frames / montage_max_nrow)
                             )
-                            montage_height = np.zeros(len(frames["states"]), dtype=int)
+                            montage_height = 0
                             for s, t in zip(
                                 frames["states"], range(len(frames["states"]))
                             ):
@@ -164,10 +162,15 @@ for zipfile in ziplist:
                                             left=64,
                                             baseline=190,
                                         )
+                                    montage_img.background_color = "transparent"
                                     big_montage_img.image_add(montage_img)
+                                    montage_height = max(
+                                        montage_height, montage_img.height
+                                    )
 
+                            # Resize all montages to same size.
                             big_montage_img.background_color = "transparent"
-                            big_montage_img.montage(thumbnail="+0+0")
+                            big_montage_img.montage(tile="1x", thumbnail="+0+0")
                             big_montage_img.compression_quality = image_quality
 
                             # Save the final result.
