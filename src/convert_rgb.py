@@ -11,8 +11,7 @@ from zipfile import ZipFile
 # Settings
 zipfilename = "1"
 convertdir = "processed"
-max_image_width = 16384
-max_image_height = 16384
+max_image_width = 23000
 image_quality = 100
 expand_bsv3 = True  # If set to True, bsv3 files will be processed (leave this value set to 1 to get the animated sprites).
 individual_frames = False  # If set to True, individual frames will be made. If set to false, a montage will be made.
@@ -22,7 +21,7 @@ individual_frames = False  # If set to True, individual frames will be made. If 
 # Check ImageMagick documentation for more info about the image formats you can use.
 # Raw image formats are not supported though because it requires you to specify the depth and image size
 # of the image being processed beforehand.
-extension = "jxl"
+extension = "png"
 
 print("\n\n--- CONVERTING RGB FILES ---\n\n")
 
@@ -113,9 +112,19 @@ for zipfile in ziplist:
                                             f"{s['statename']}_{i}.{extension}",
                                         )
                                     )
+                                frames_img.image_remove()
 
                     else:
                         with Image() as big_montage_img:
+                            max_number_frames = max(
+                                [s["end"] - s["start"] + 1 for s in frames["states"]]
+                            )
+                            montage_max_ncol = int(
+                                np.ceil(
+                                    max_number_frames
+                                    / np.floor(np.sqrt(max_number_frames))
+                                )
+                            )
                             montage_height = np.zeros(len(frames["states"]), dtype=int)
                             for s, t in zip(
                                 frames["states"], range(len(frames["states"]))
@@ -128,8 +137,12 @@ for zipfile in ziplist:
                                                 color="darksalmon", width=5, height=5
                                             )
                                             montage_img.image_add(frame_img)
+                                    frames_img.image_remove()
                                     montage_img.background_color = "transparent"
-                                    montage_img.montage(thumbnail="+0+0")
+                                    montage_img.montage(
+                                        tile=f"{montage_max_ncol}x",
+                                        thumbnail="+0+0",
+                                    )
                                     montage_img.border(
                                         color="darksalmon", width=5, height=5
                                     )
@@ -139,6 +152,7 @@ for zipfile in ziplist:
                             big_montage_img.background_color = "transparent"
                             big_montage_img.montage(tile="1x", thumbnail="+0+0")
                             big_montage_img.background_color = "indianred"
+                            big_montage_img.compression_quality = image_quality
 
                             # Write labels in the montage.
                             for s, t in zip(

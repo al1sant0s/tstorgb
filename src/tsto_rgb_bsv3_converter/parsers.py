@@ -56,19 +56,20 @@ def rgb_parser(file, show_progress=False, prefix_str=""):
 def bsv3_parser(bsv3_file, rgb_img, show_progress=False, prefix_str=""):
     with open(bsv3_file, "rb") as f:
         check = int.from_bytes(f.read(2), byteorder="little", signed=False)
-
         if check == 259:
-            cellnumber = int.from_bytes(f.read(2), byteorder="little", signed=False)
-            is_alpha = int.from_bytes(f.read(1), byteorder="little", signed=False)
+            return bsv3_259(bsv3_file, rgb_img, show_progress, prefix_str)
         elif check == 771:
-            is_alpha = int(np.frombuffer(f.read(4), dtype=np.float32))
-            cellnumber = int.from_bytes(f.read(2), byteorder="little", signed=False)
-            f.seek(f.tell() + 1)
+            return bsv3_771(bsv3_file, rgb_img, show_progress, prefix_str)
         else:
             print("Invalid bsv3 signature. Skipping this file.")
             return False
-            # rgb_img.save(filename=Path(target, f"{file.stem}.{extension}"))
-            # n += 1
+
+
+def bsv3_259(bsv3_file, rgb_img, show_progress=False, prefix_str=""):
+    with open(bsv3_file, "rb") as f:
+        f.seek(2)
+        cellnumber = int.from_bytes(f.read(2), byteorder="little", signed=False)
+        is_alpha = int.from_bytes(f.read(1), byteorder="little", signed=False)
 
         cell = np.array([np.zeros(4)] * cellnumber, dtype=int)
 
@@ -91,8 +92,8 @@ def bsv3_parser(bsv3_file, rgb_img, show_progress=False, prefix_str=""):
                     )
                     cell_img.image_add(img)
 
-            # Frames information.
-            frames = int.from_bytes(f.read(2), byteorder="little", signed=False)
+            # Blocks information.
+            blocks = int.from_bytes(f.read(2), byteorder="little", signed=False)
             subcells = list()  # Number of subcells.
 
             # Subcell data.
@@ -102,8 +103,8 @@ def bsv3_parser(bsv3_file, rgb_img, show_progress=False, prefix_str=""):
             affine_matrix = list()
             alpha = list()
 
-            # Read frames info.
-            for i in range(frames):
+            # Read blocks info.
+            for i in range(blocks):
                 if show_progress is True:
                     report_progress(prefix_str, f"[{0}/{i + 1}]")
 
@@ -185,7 +186,7 @@ def bsv3_parser(bsv3_file, rgb_img, show_progress=False, prefix_str=""):
             # Get states info.
             statenumber = int.from_bytes(f.read(2), byteorder="little", signed=False)
             states = [
-                deepcopy(dict.fromkeys(["state", "start", "end"]))
+                deepcopy(dict.fromkeys(["statename", "start", "end"]))
                 for _ in range(statenumber)
             ]
 
@@ -205,7 +206,7 @@ def bsv3_parser(bsv3_file, rgb_img, show_progress=False, prefix_str=""):
                         # Generate the frames.
                         for i in range(start, end + 1):
                             if show_progress is True:
-                                report_progress(prefix_str, f"[{i + 1}/{frames}]")
+                                report_progress(prefix_str, f"[{i + 1}/{blocks}]")
 
                             frame_img.image_add(
                                 Image(
@@ -232,6 +233,175 @@ def bsv3_parser(bsv3_file, rgb_img, show_progress=False, prefix_str=""):
 
                                     # Get coordinates.
                                     coords = a[i][..., j] - c[..., 0]
+
+                                    # Set composition.
+                                    frame_img.composite(
+                                        image=subcell,
+                                        left=coords[0],
+                                        top=coords[1],
+                                    )
+
+                        # Add to frames.
+                        frames_img.image_add(frame_img)
+
+                    # Register state.
+                    states[s]["statename"] = statename
+                    states[s]["start"] = start
+                    states[s]["end"] = end
+
+                return {"frames": frames_img.clone(), "states": states}
+
+
+def bsv3_771(bsv3_file, rgb_img, show_progress=False, prefix_str=""):
+    with open(bsv3_file, "rb") as f:
+        f.seek(2)
+
+        unknown = np.frombuffer(f.read(4), dtype=np.float32)
+        cellnumber = int.from_bytes(f.read(2), byteorder="little", signed=False)
+        is_alpha = int.from_bytes(f.read(1), byteorder="little", signed=False)
+
+        cell = np.array([np.zeros(4)] * cellnumber, dtype=int)
+
+        # Get cells.
+        with Image() as cell_img:
+            for i in range(cellnumber):
+                skip = int.from_bytes(f.read(1), byteorder="little", signed=False)
+                f.seek(f.tell() + skip)
+
+                # Read x, y, width and height.
+                cell[i] = np.frombuffer(f.read(8), dtype=np.uint16)
+
+                # Crop the cell.
+                with rgb_img.clone() as img:
+                    img.crop(
+                        cell[i][0],
+                        cell[i][1],
+                        width=cell[i][2],
+                        height=cell[i][3],
+                    )
+                    cell_img.image_add(img)
+
+            # Blocks information.
+            blocks = int.from_bytes(f.read(2), byteorder="little", signed=False)
+            subcells = int.from_bytes(
+                f.read(2), byteorder="little", signed=False
+            )  # Number of subcells.
+
+            # Subcell data.
+            index = np.zeros(subcells, dtype=int)
+            a = np.zeros((2, subcells), dtype=int)
+            b = np.zeros((2, subcells), dtype=int)
+            affine_matrix = np.array([np.identity(3)] * subcells)
+            alpha = np.zeros(subcells, dtype=int)
+
+            for j in range(subcells):
+                index[j] = int.from_bytes(f.read(2), byteorder="little", signed=False)
+
+                # Get top left corner.
+                a[..., j] = np.frombuffer(
+                    f.read(8), dtype=np.float32, count=2
+                ).transpose()
+
+                # Get coefficients for the ImageMagick distort matrix
+                # [sx rx 0]
+                # [ry sy 0]
+                # [0 0 1]
+                affine_matrix[j, 0:2, 0:2] = np.frombuffer(
+                    f.read(16),
+                    dtype=np.float32,
+                    count=4,
+                ).reshape(2, 2)
+
+                # Get edges in counterclockwise direction.
+                edges = (
+                    cell[index[j]][2:4].reshape(2, 1)
+                    / 2
+                    * np.array([[1, -1, -1, 1], [1, 1, -1, -1]])
+                )
+
+                # Transform edges.
+                edges = np.matmul(affine_matrix[j, 0:2, 0:2], edges)
+                edges.sort()
+
+                # Get bottom right corner.
+                b[..., j] = (
+                    a[..., j] + edges[..., -1] - edges[..., 0] + np.array([2, 2])
+                )
+
+                # Get alpha.
+                if is_alpha == 1:
+                    alpha[j] = int.from_bytes(
+                        f.read(1), byteorder="little", signed=False
+                    )
+                else:
+                    alpha[j] = 255
+
+            # Get canvas dimensions.
+            c = a.copy()
+            c.sort()
+            d = b.copy()
+            d.sort()
+
+            canvas_dim = np.array(d[..., -1] - c[..., 0], dtype=int)
+
+            # Read frames info.
+            frames_items = [np.zeros(0) for _ in range(blocks)]
+            for i in range(blocks):
+                subcells = int.from_bytes(f.read(2), byteorder="little", signed=False)
+                f.seek(f.tell() + 1)  # extra byte to ignore.
+
+                frames_items[i] = np.zeros(subcells, dtype=int)
+                for j in range(subcells):
+                    frames_items[i][j] = int.from_bytes(
+                        f.read(2), byteorder="little", signed=False
+                    )
+
+            # Get states info.
+            statenumber = int.from_bytes(f.read(2), byteorder="little", signed=False)
+            states = [
+                deepcopy(dict.fromkeys(["statename", "start", "end"]))
+                for _ in range(statenumber)
+            ]
+
+            # Capture the frames.
+            with Image() as frames_img:
+                for s in range(statenumber):
+                    skip = int.from_bytes(f.read(1), byteorder="little", signed=False)
+
+                    statename = f.read(skip - 1).decode("utf8")
+                    f.seek(f.tell() + 1)
+
+                    start = int.from_bytes(f.read(2), byteorder="little", signed=False)
+                    end = int.from_bytes(f.read(2), byteorder="little", signed=False)
+
+                    with Image() as frame_img:
+                        frame_img.background_color = "transparent"
+                        # Generate the frames.
+                        for i in range(start, end + 1):
+                            if show_progress is True:
+                                report_progress(prefix_str, f"[{i + 1}/{blocks}]")
+
+                            frame_img.image_add(
+                                Image(
+                                    width=canvas_dim[0],
+                                    height=canvas_dim[1],
+                                    background="transparent",
+                                )
+                            )
+
+                            for j in reversed(frames_items[i]):
+                                cell_img.iterator_set(index[j])
+                                with cell_img.image_get() as subcell:  # type: ignore
+                                    subcell.image_set(subcell.fx(f"u * {alpha[j]}/255"))
+                                    subcell.virtual_pixel = "transparent"
+                                    subcell.distort(
+                                        "affine_projection",
+                                        affine_matrix[j, 0:3, 0:2].flatten().tolist(),
+                                        best_fit=True,
+                                    )
+
+                                    # Get coordinates.
+                                    coords = a[..., j] - c[..., 0]
 
                                     # Set composition.
                                     frame_img.composite(
