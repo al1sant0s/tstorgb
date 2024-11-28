@@ -11,17 +11,16 @@ from zipfile import ZipFile
 # Settings
 zipfilename = "1"
 convertdir = "processed"
-max_image_width = 23000
 image_quality = 100
 expand_bsv3 = True  # If set to True, bsv3 files will be processed (leave this value set to 1 to get the animated sprites).
-individual_frames = False  # If set to True, individual frames will be made. If set to false, a montage will be made.
+individual_frames = True  # If set to True, individual frames will be made. If set to false, a montage will be made.
 
 # Edit this if you want a different resulting image format.
 # You can choose between most of ImageMagick supported image formats like png32, tiff, jpg, etc.
 # Check ImageMagick documentation for more info about the image formats you can use.
 # Raw image formats are not supported though because it requires you to specify the depth and image size
 # of the image being processed beforehand.
-extension = "png"
+extension = "webp"
 
 print("\n\n--- CONVERTING RGB FILES ---\n\n")
 
@@ -103,72 +102,64 @@ for zipfile in ziplist:
                 # How the frames will be saved.
                 if individual_frames is True:
                     for s, t in zip(bsv3_result[1], bsv3_result[2]):
+                        dest = Path(target, s)
+                        dest.mkdir()
                         for i in range(t):
                             with next(bsv3_result[0]) as frame_img:
                                 frame_img.save(
                                     filename=Path(
                                         target,
-                                        f"{s}_{i}.{extension}",
+                                        Path(dest, f"{i}.{extension}"),
                                     )
                                 )
 
                 else:
-                    with Image() as big_montage_img:
-                        max_number_frames = max(bsv3_result[2])
-                        montage_max_nrow = int(np.sqrt(max_number_frames))
-                        montage_max_ncol = int(
-                            np.ceil(max_number_frames / montage_max_nrow)
-                        )
+                    max_number_frames = max(bsv3_result[2])
+                    montage_max_nrow = int(np.sqrt(max_number_frames))
+                    montage_max_ncol = int(
+                        np.ceil(max_number_frames / montage_max_nrow)
+                    )
 
-                        for s, t in zip(bsv3_result[1], bsv3_result[2]):
-                            with Image() as montage_img:
-                                for i in range(t):
-                                    with next(bsv3_result[0]) as frame_img:
-                                        frame_img.border(
-                                            color="darksalmon",
-                                            width=5,
-                                            height=5,
-                                        )
-                                        montage_img.image_add(frame_img)
-
-                                montage_img.background_color = "transparent"
-                                montage_img.montage(
-                                    tile=f"{montage_max_ncol}x",
-                                    thumbnail="+0+0",
-                                )
-                                montage_img.border(
-                                    color="darksalmon", width=5, height=5
-                                )
-                                # Write state label.
-                                montage_img.background_color = "indianred"
-                                montage_img.splice(
-                                    x=0,
-                                    y=0,
-                                    width=0,
-                                    height=256,
-                                )
-                                with Drawing() as ctx:
-                                    ctx.font_family = "Alegreya ExtraBold"
-                                    ctx.font_style = "italic"
-                                    ctx.font_size = 200
-                                    ctx.text_kerning = 8
-                                    ctx.fill_color = "antiquewhite"
-                                    montage_img.annotate(
-                                        s,
-                                        ctx,
-                                        left=64,
-                                        baseline=190,
+                    for s, t in zip(bsv3_result[1], bsv3_result[2]):
+                        with Image() as montage_img:
+                            for i in range(t):
+                                with next(bsv3_result[0]) as frame_img:
+                                    frame_img.border(
+                                        color="darksalmon",
+                                        width=5,
+                                        height=5,
                                     )
-                                # montage_img.background_color = "transparent"
-                                big_montage_img.image_add(montage_img)
+                                    montage_img.image_add(frame_img)
 
-                        # Resize all montages to same size.
-                        big_montage_img.background_color = "transparent"
-                        big_montage_img.montage(tile="1x", thumbnail="+0+0")
-                        big_montage_img.compression_quality = image_quality
+                            montage_img.background_color = "transparent"
+                            montage_img.montage(
+                                tile=f"{montage_max_ncol}x",
+                                thumbnail="+0+0",
+                            )
+                            montage_img.border(color="darksalmon", width=5, height=5)
+                            # Write state label.
+                            montage_img.background_color = "indianred"
+                            montage_img.splice(
+                                x=0,
+                                y=0,
+                                width=0,
+                                height=256,
+                            )
+                            with Drawing() as ctx:
+                                ctx.font_family = "Alegreya ExtraBold"
+                                ctx.font_style = "italic"
+                                ctx.font_size = 200
+                                ctx.text_kerning = 8
+                                ctx.fill_color = "antiquewhite"
+                                montage_img.annotate(
+                                    s,
+                                    ctx,
+                                    left=64,
+                                    baseline=190,
+                                )
 
-                        # Save the final result.
-                        finalresult = Path(target, f"{filename}.{extension}")
-                        big_montage_img.save(filename=finalresult)
+                                # Save the final result.
+                                finalresult = Path(target, f"{s}.{extension}")
+                                montage_img.save(filename=finalresult)
 
 print("\n\n--- JOB COMPLETED!!! ---\n\n")
