@@ -91,90 +91,84 @@ for zipfile in ziplist:
                 n += 1
 
             else:
-                frames = bsv3_parser(
+                bsv3_result = bsv3_parser(
                     bsv3_file, baseimage, True, progress_str(n, total, filename, "bsv3")
                 )
 
-                if frames is False:
+                if bsv3_result is False:
                     baseimage.save(filename=Path(target, f"{filename}.{extension}"))
                     n += 1
                     continue
 
-                with frames["frames"] as frames_img:
-                    if individual_frames is True:
-                        for s in frames["states"]:
-                            for i in range(s["start"], s["end"] + 1):
-                                frames_img.iterator_set(i)
-                                with frames_img.image_get() as frame_img:
-                                    frame_img.save(
-                                        filename=Path(
-                                            target,
-                                            f"{s['statename']}_{i}.{extension}",
+                # How the frames will be saved.
+                if individual_frames is True:
+                    for s, t in zip(bsv3_result[1], bsv3_result[2]):
+                        for i in range(t):
+                            with next(bsv3_result[0]) as frame_img:
+                                frame_img.save(
+                                    filename=Path(
+                                        target,
+                                        f"{s}_{i}.{extension}",
+                                    )
+                                )
+
+                else:
+                    with Image() as big_montage_img:
+                        max_number_frames = max(bsv3_result[2])
+                        montage_max_nrow = int(np.sqrt(max_number_frames))
+                        montage_max_ncol = int(
+                            np.ceil(max_number_frames / montage_max_nrow)
+                        )
+
+                        for s, t in zip(bsv3_result[1], bsv3_result[2]):
+                            with Image() as montage_img:
+                                for i in range(t):
+                                    with next(bsv3_result[0]) as frame_img:
+                                        frame_img.border(
+                                            color="darksalmon",
+                                            width=5,
+                                            height=5,
                                         )
-                                    )
+                                        montage_img.image_add(frame_img)
 
-                    else:
-                        with Image() as big_montage_img:
-                            max_number_frames = max(
-                                [s["end"] - s["start"] + 1 for s in frames["states"]]
-                            )
-                            montage_max_nrow = int(np.sqrt(max_number_frames))
-                            montage_max_ncol = int(
-                                np.ceil(max_number_frames / montage_max_nrow)
-                            )
-                            montage_height = 0
-                            for s, t in zip(
-                                frames["states"], range(len(frames["states"]))
-                            ):
-                                with Image() as montage_img:
-                                    for i in range(s["start"], s["end"] + 1):
-                                        frames_img.iterator_set(i)
-                                        with frames_img.image_get() as frame_img:
-                                            frame_img.border(
-                                                color="darksalmon", width=5, height=5
-                                            )
-                                            montage_img.image_add(frame_img)
-                                    montage_img.background_color = "transparent"
-                                    montage_img.montage(
-                                        tile=f"{montage_max_ncol}x",
-                                        thumbnail="+0+0",
+                                montage_img.background_color = "transparent"
+                                montage_img.montage(
+                                    tile=f"{montage_max_ncol}x",
+                                    thumbnail="+0+0",
+                                )
+                                montage_img.border(
+                                    color="darksalmon", width=5, height=5
+                                )
+                                # Write state label.
+                                montage_img.background_color = "indianred"
+                                montage_img.splice(
+                                    x=0,
+                                    y=0,
+                                    width=0,
+                                    height=256,
+                                )
+                                with Drawing() as ctx:
+                                    ctx.font_family = "Alegreya ExtraBold"
+                                    ctx.font_style = "italic"
+                                    ctx.font_size = 200
+                                    ctx.text_kerning = 8
+                                    ctx.fill_color = "antiquewhite"
+                                    montage_img.annotate(
+                                        s,
+                                        ctx,
+                                        left=64,
+                                        baseline=190,
                                     )
-                                    montage_img.border(
-                                        color="darksalmon", width=5, height=5
-                                    )
-                                    # Write state label.
-                                    montage_img.background_color = "indianred"
-                                    montage_img.splice(
-                                        x=0,
-                                        y=0,
-                                        width=0,
-                                        height=256,
-                                    )
-                                    with Drawing() as ctx:
-                                        ctx.font_family = "Alegreya ExtraBold"
-                                        ctx.font_style = "italic"
-                                        ctx.font_size = 200
-                                        ctx.text_kerning = 8
-                                        ctx.fill_color = "antiquewhite"
-                                        montage_img.annotate(
-                                            s["statename"],
-                                            ctx,
-                                            left=64,
-                                            baseline=190,
-                                        )
-                                    montage_img.background_color = "transparent"
-                                    big_montage_img.image_add(montage_img)
-                                    montage_height = max(
-                                        montage_height, montage_img.height
-                                    )
+                                # montage_img.background_color = "transparent"
+                                big_montage_img.image_add(montage_img)
 
-                            # Resize all montages to same size.
-                            big_montage_img.background_color = "transparent"
-                            big_montage_img.montage(tile="1x", thumbnail="+0+0")
-                            big_montage_img.compression_quality = image_quality
+                        # Resize all montages to same size.
+                        big_montage_img.background_color = "transparent"
+                        big_montage_img.montage(tile="1x", thumbnail="+0+0")
+                        big_montage_img.compression_quality = image_quality
 
-                            # Save the final result.
-                            finalresult = Path(target, f"{filename}.{extension}")
-                            big_montage_img.save(filename=finalresult)
+                        # Save the final result.
+                        finalresult = Path(target, f"{filename}.{extension}")
+                        big_montage_img.save(filename=finalresult)
 
 print("\n\n--- JOB COMPLETED!!! ---\n\n")

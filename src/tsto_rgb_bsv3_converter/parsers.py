@@ -176,74 +176,82 @@ def bsv3_259(bsv3_file, rgb_img, show_progress=False, prefix_str=""):
 
         # Get states info.
         statenumber = int.from_bytes(f.read(2), byteorder="little", signed=False)
-        states = [
-            deepcopy(dict.fromkeys(["statename", "start", "end"]))
-            for _ in range(statenumber)
-        ]
+        statenames = ["" for _ in range(statenumber)]
+        stateitems = [0 for _ in range(statenumber)]
 
-        # Capture the frames.
-        with Image() as frames_img:
-            for s in range(statenumber):
-                skip = int.from_bytes(f.read(1), byteorder="little", signed=False)
+        for s in range(statenumber):
+            skip = int.from_bytes(f.read(1), byteorder="little", signed=False)
 
-                statename = f.read(skip - 1).decode("utf8")
-                f.seek(f.tell() + 1)
+            statenames[s] = f.read(skip - 1).decode("utf8")
+            f.seek(f.tell() + 1)
 
-                start = int.from_bytes(f.read(2), byteorder="little", signed=False)
-                end = int.from_bytes(f.read(2), byteorder="little", signed=False)
+            start = int.from_bytes(f.read(2), byteorder="little", signed=False)
+            end = int.from_bytes(f.read(2), byteorder="little", signed=False)
+            stateitems[s] = end - start + 1
 
-                with Image() as frame_img:
-                    frame_img.background_color = "transparent"
-                    # Generate the frames.
-                    for i in range(start, end + 1):
-                        if show_progress is True:
-                            report_progress(prefix_str, f"[{i + 1}/{blocks}]")
+        # Generate the frames.
+        def generate_frames(
+            rgb_img,
+            cell,
+            blocks,
+            index,
+            a,
+            c,
+            affine_matrix,
+            canvas_dim,
+            show_progress,
+            prefix_str,
+        ):
+            for i in range(blocks):
+                with Image(
+                    width=canvas_dim[0], height=canvas_dim[1], background="transparent"
+                ) as frame_img:
+                    if show_progress is True:
+                        report_progress(prefix_str, f"[{i + 1}/{blocks}]")
 
-                        frame_img.image_add(
-                            Image(
-                                width=canvas_dim[0],
-                                height=canvas_dim[1],
-                                background="transparent",
+                    for j in reversed(range(subcells[i])):
+                        # Crop the cell.
+                        with rgb_img.clone() as subcell:
+                            subcell.crop(
+                                cell[index[i][j]][0],
+                                cell[index[i][j]][1],
+                                width=cell[index[i][j]][2],
+                                height=cell[index[i][j]][3],
                             )
-                        )
 
-                        for j in reversed(range(subcells[i])):
-                            # Crop the cell.
-                            with rgb_img.clone() as subcell:
-                                subcell.crop(
-                                    cell[index[i][j]][0],
-                                    cell[index[i][j]][1],
-                                    width=cell[index[i][j]][2],
-                                    height=cell[index[i][j]][3],
-                                )
+                            subcell.image_set(subcell.fx(f"u * {alpha[i][j]}/255"))
+                            subcell.virtual_pixel = "transparent"
+                            subcell.distort(
+                                "affine_projection",
+                                affine_matrix[i][j, 0:3, 0:2].flatten().tolist(),
+                                best_fit=True,
+                            )
 
-                                subcell.image_set(subcell.fx(f"u * {alpha[i][j]}/255"))
-                                subcell.virtual_pixel = "transparent"
-                                subcell.distort(
-                                    "affine_projection",
-                                    affine_matrix[i][j, 0:3, 0:2].flatten().tolist(),
-                                    best_fit=True,
-                                )
+                            # Get coordinates.
+                            coords = a[i][..., j] - c[..., 0]
 
-                                # Get coordinates.
-                                coords = a[i][..., j] - c[..., 0]
+                            # Set composition.
+                            frame_img.composite(
+                                image=subcell,
+                                left=coords[0],
+                                top=coords[1],
+                            )
+                    yield frame_img
 
-                                # Set composition.
-                                frame_img.composite(
-                                    image=subcell,
-                                    left=coords[0],
-                                    top=coords[1],
-                                )
+        frame_iterator = generate_frames(
+            rgb_img,
+            cell,
+            blocks,
+            index,
+            a,
+            c,
+            affine_matrix,
+            canvas_dim,
+            show_progress,
+            prefix_str,
+        )
 
-                    # Add to frames.
-                    frames_img.image_add(frame_img)
-
-                # Register state.
-                states[s]["statename"] = statename
-                states[s]["start"] = start
-                states[s]["end"] = end
-
-            return {"frames": frames_img.clone(), "states": states}
+        return [frame_iterator, statenames, stateitems]
 
 
 def bsv3_771(bsv3_file, rgb_img, show_progress=False, prefix_str=""):
@@ -257,159 +265,159 @@ def bsv3_771(bsv3_file, rgb_img, show_progress=False, prefix_str=""):
         cell = np.array([np.zeros(4)] * cellnumber, dtype=int)
 
         # Get cells.
-        with Image() as cell_img:
-            for i in range(cellnumber):
-                skip = int.from_bytes(f.read(1), byteorder="little", signed=False)
-                f.seek(f.tell() + skip)
+        for i in range(cellnumber):
+            skip = int.from_bytes(f.read(1), byteorder="little", signed=False)
+            f.seek(f.tell() + skip)
 
-                # Read x, y, width and height.
-                cell[i] = np.frombuffer(f.read(8), dtype=np.uint16)
+            # Read x, y, width and height.
+            cell[i] = np.frombuffer(f.read(8), dtype=np.uint16)
 
-                # Crop the cell.
-                with rgb_img.clone() as img:
-                    img.crop(
-                        cell[i][0],
-                        cell[i][1],
-                        width=cell[i][2],
-                        height=cell[i][3],
-                    )
-                    cell_img.image_add(img)
+        # Blocks information.
+        blocks = int.from_bytes(f.read(2), byteorder="little", signed=False)
+        subcells = int.from_bytes(
+            f.read(2), byteorder="little", signed=False
+        )  # Number of subcells.
 
-            # Blocks information.
-            blocks = int.from_bytes(f.read(2), byteorder="little", signed=False)
-            subcells = int.from_bytes(
-                f.read(2), byteorder="little", signed=False
-            )  # Number of subcells.
+        # Subcell data.
+        index = np.zeros(subcells, dtype=int)
+        a = np.zeros((2, subcells), dtype=int)
+        b = np.zeros((2, subcells), dtype=int)
+        affine_matrix = np.array([np.identity(3)] * subcells)
+        alpha = np.zeros(subcells, dtype=int)
 
-            # Subcell data.
-            index = np.zeros(subcells, dtype=int)
-            a = np.zeros((2, subcells), dtype=int)
-            b = np.zeros((2, subcells), dtype=int)
-            affine_matrix = np.array([np.identity(3)] * subcells)
-            alpha = np.zeros(subcells, dtype=int)
+        for j in range(subcells):
+            index[j] = int.from_bytes(f.read(2), byteorder="little", signed=False)
 
+            # Get top left corner.
+            a[..., j] = np.frombuffer(f.read(8), dtype=np.float32, count=2).transpose()
+
+            # Get coefficients for the ImageMagick distort matrix
+            # [sx rx 0]
+            # [ry sy 0]
+            # [0 0 1]
+            affine_matrix[j, 0:2, 0:2] = np.frombuffer(
+                f.read(16),
+                dtype=np.float32,
+                count=4,
+            ).reshape(2, 2)
+
+            # Get edges in counterclockwise direction.
+            edges = (
+                cell[index[j]][2:4].reshape(2, 1)
+                / 2
+                * np.array([[1, -1, -1, 1], [1, 1, -1, -1]])
+            )
+
+            # Transform edges.
+            edges = np.matmul(affine_matrix[j, 0:2, 0:2], edges)
+            edges.sort()
+
+            # Get bottom right corner.
+            b[..., j] = a[..., j] + edges[..., -1] - edges[..., 0] + np.array([2, 2])
+
+            # Get alpha.
+            if is_alpha == 1:
+                alpha[j] = int.from_bytes(f.read(1), byteorder="little", signed=False)
+            else:
+                alpha[j] = 255
+
+        # Get canvas dimensions.
+        c = a.copy()
+        c.sort()
+        d = b.copy()
+        d.sort()
+
+        canvas_dim = np.array(d[..., -1] - c[..., 0], dtype=int)
+
+        # Read frames info.
+        frames_items = [np.zeros(0) for _ in range(blocks)]
+        for i in range(blocks):
+            subcells = int.from_bytes(f.read(2), byteorder="little", signed=False)
+            f.seek(f.tell() + 1)  # extra byte to ignore.
+
+            frames_items[i] = np.zeros(subcells, dtype=int)
             for j in range(subcells):
-                index[j] = int.from_bytes(f.read(2), byteorder="little", signed=False)
-
-                # Get top left corner.
-                a[..., j] = np.frombuffer(
-                    f.read(8), dtype=np.float32, count=2
-                ).transpose()
-
-                # Get coefficients for the ImageMagick distort matrix
-                # [sx rx 0]
-                # [ry sy 0]
-                # [0 0 1]
-                affine_matrix[j, 0:2, 0:2] = np.frombuffer(
-                    f.read(16),
-                    dtype=np.float32,
-                    count=4,
-                ).reshape(2, 2)
-
-                # Get edges in counterclockwise direction.
-                edges = (
-                    cell[index[j]][2:4].reshape(2, 1)
-                    / 2
-                    * np.array([[1, -1, -1, 1], [1, 1, -1, -1]])
+                frames_items[i][j] = int.from_bytes(
+                    f.read(2), byteorder="little", signed=False
                 )
 
-                # Transform edges.
-                edges = np.matmul(affine_matrix[j, 0:2, 0:2], edges)
-                edges.sort()
+        # Get states info.
+        statenumber = int.from_bytes(f.read(2), byteorder="little", signed=False)
+        statenames = ["" for _ in range(statenumber)]
+        stateitems = [0 for _ in range(statenumber)]
 
-                # Get bottom right corner.
-                b[..., j] = (
-                    a[..., j] + edges[..., -1] - edges[..., 0] + np.array([2, 2])
-                )
+        for s in range(statenumber):
+            skip = int.from_bytes(f.read(1), byteorder="little", signed=False)
 
-                # Get alpha.
-                if is_alpha == 1:
-                    alpha[j] = int.from_bytes(
-                        f.read(1), byteorder="little", signed=False
-                    )
-                else:
-                    alpha[j] = 255
+            statenames[s] = f.read(skip - 1).decode("utf8")
+            f.seek(f.tell() + 1)
 
-            # Get canvas dimensions.
-            c = a.copy()
-            c.sort()
-            d = b.copy()
-            d.sort()
+            start = int.from_bytes(f.read(2), byteorder="little", signed=False)
+            end = int.from_bytes(f.read(2), byteorder="little", signed=False)
+            stateitems[s] = end - start + 1
 
-            canvas_dim = np.array(d[..., -1] - c[..., 0], dtype=int)
-
-            # Read frames info.
-            frames_items = [np.zeros(0) for _ in range(blocks)]
+        # Generate the frames.
+        def generate_frames(
+            rgb_img,
+            cell,
+            blocks,
+            index,
+            a,
+            c,
+            affine_matrix,
+            canvas_dim,
+            frames_items,
+            show_progress,
+            prefix_str,
+        ):
             for i in range(blocks):
-                subcells = int.from_bytes(f.read(2), byteorder="little", signed=False)
-                f.seek(f.tell() + 1)  # extra byte to ignore.
+                with Image(
+                    width=canvas_dim[0], height=canvas_dim[1], background="transparent"
+                ) as frame_img:
+                    if show_progress is True:
+                        report_progress(prefix_str, f"[{i + 1}/{blocks}]")
 
-                frames_items[i] = np.zeros(subcells, dtype=int)
-                for j in range(subcells):
-                    frames_items[i][j] = int.from_bytes(
-                        f.read(2), byteorder="little", signed=False
-                    )
-
-            # Get states info.
-            statenumber = int.from_bytes(f.read(2), byteorder="little", signed=False)
-            states = [
-                deepcopy(dict.fromkeys(["statename", "start", "end"]))
-                for _ in range(statenumber)
-            ]
-
-            # Capture the frames.
-            with Image() as frames_img:
-                for s in range(statenumber):
-                    skip = int.from_bytes(f.read(1), byteorder="little", signed=False)
-
-                    statename = f.read(skip - 1).decode("utf8")
-                    f.seek(f.tell() + 1)
-
-                    start = int.from_bytes(f.read(2), byteorder="little", signed=False)
-                    end = int.from_bytes(f.read(2), byteorder="little", signed=False)
-
-                    with Image() as frame_img:
-                        frame_img.background_color = "transparent"
-                        # Generate the frames.
-                        for i in range(start, end + 1):
-                            if show_progress is True:
-                                report_progress(prefix_str, f"[{i + 1}/{blocks}]")
-
-                            frame_img.image_add(
-                                Image(
-                                    width=canvas_dim[0],
-                                    height=canvas_dim[1],
-                                    background="transparent",
-                                )
+                    for j in reversed(frames_items[i]):
+                        # Crop the cell.
+                        with rgb_img.clone() as subcell:
+                            subcell.crop(
+                                cell[index[j]][0],
+                                cell[index[j]][1],
+                                width=cell[index[j]][2],
+                                height=cell[index[j]][3],
                             )
 
-                            for j in reversed(frames_items[i]):
-                                cell_img.iterator_set(index[j])
-                                with cell_img.image_get() as subcell:  # type: ignore
-                                    subcell.image_set(subcell.fx(f"u * {alpha[j]}/255"))
-                                    subcell.virtual_pixel = "transparent"
-                                    subcell.distort(
-                                        "affine_projection",
-                                        affine_matrix[j, 0:3, 0:2].flatten().tolist(),
-                                        best_fit=True,
-                                    )
+                            subcell.image_set(subcell.fx(f"u * {alpha[j]}/255"))
+                            subcell.virtual_pixel = "transparent"
+                            subcell.distort(
+                                "affine_projection",
+                                affine_matrix[j, 0:3, 0:2].flatten().tolist(),
+                                best_fit=True,
+                            )
 
-                                    # Get coordinates.
-                                    coords = a[..., j] - c[..., 0]
+                            # Get coordinates.
+                            coords = a[..., j] - c[..., 0]
 
-                                    # Set composition.
-                                    frame_img.composite(
-                                        image=subcell,
-                                        left=coords[0],
-                                        top=coords[1],
-                                    )
+                            # Set composition.
+                            frame_img.composite(
+                                image=subcell,
+                                left=coords[0],
+                                top=coords[1],
+                            )
+                    yield frame_img
 
-                        # Add to frames.
-                        frames_img.image_add(frame_img)
+        frame_iterator = generate_frames(
+            rgb_img,
+            cell,
+            blocks,
+            index,
+            a,
+            c,
+            affine_matrix,
+            canvas_dim,
+            frames_items,
+            show_progress,
+            prefix_str,
+        )
 
-                    # Register state.
-                    states[s]["statename"] = statename
-                    states[s]["start"] = start
-                    states[s]["end"] = end
-
-                return {"frames": frames_img.clone(), "states": states}
+        return [frame_iterator, statenames, stateitems]
