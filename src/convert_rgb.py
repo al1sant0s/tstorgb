@@ -65,13 +65,12 @@ for zipfile in ziplist:
         dest = Path(assets, convertdir)
         dest.mkdir(exist_ok=True)
 
-        entity = filename.split("_")
-        action = filename.split("_image")
+        entity = filename.split("_", maxsplit=1)
 
-        if len(action) > 1:
-            target = Path(dest, entity[0], action[0])
+        if len(entity) == 2:
+            target = Path(dest, entity[0], entity[1].split("_image", maxsplit=1)[0])
         else:
-            target = Path(dest, entity[0])
+            target = Path(dest, entity[0], "_default")
 
         target.mkdir(parents=True, exist_ok=True)
 
@@ -79,6 +78,7 @@ for zipfile in ziplist:
 
         # Ignore this file if it cannot be parsed.
         if rgb_image is False:
+            n += 1
             continue
 
         with rgb_image as baseimage:
@@ -87,7 +87,6 @@ for zipfile in ziplist:
             # Save image or process animation.
             if expand_bsv3 is False or bsv3_file.exists() is False:
                 baseimage.save(filename=Path(target, f"{filename}.{extension}"))
-                n += 1
 
             else:
                 bsv3_result = bsv3_parser(
@@ -96,14 +95,13 @@ for zipfile in ziplist:
 
                 if bsv3_result is False:
                     baseimage.save(filename=Path(target, f"{filename}.{extension}"))
-                    n += 1
                     continue
 
                 # How the frames will be saved.
                 if individual_frames is True:
                     for s, t in zip(bsv3_result[1], bsv3_result[2]):
                         dest = Path(target, s)
-                        dest.mkdir()
+                        dest.mkdir(exist_ok=True)
                         for i in range(t):
                             with next(bsv3_result[0]) as frame_img:
                                 frame_img.save(
@@ -161,5 +159,7 @@ for zipfile in ziplist:
                                 # Save the final result.
                                 finalresult = Path(target, f"{s}.{extension}")
                                 montage_img.save(filename=finalresult)
+
+        n += 1
 
 print("\n\n--- JOB COMPLETED!!! ---\n\n")
