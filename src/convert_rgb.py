@@ -104,6 +104,7 @@ for zipfile in ziplist:
                         dest.mkdir(exist_ok=True)
                         for i in range(t):
                             with next(bsv3_result[0]) as frame_img:
+                                frame_img.compression_quality = image_quality
                                 frame_img.save(
                                     filename=Path(
                                         target,
@@ -118,47 +119,57 @@ for zipfile in ziplist:
                         np.ceil(max_number_frames / montage_max_nrow)
                     )
 
-                    for s, t in zip(bsv3_result[1], bsv3_result[2]):
-                        with Image() as montage_img:
-                            for i in range(t):
-                                with next(bsv3_result[0]) as frame_img:
-                                    frame_img.border(
-                                        color="darksalmon",
-                                        width=5,
-                                        height=5,
-                                    )
-                                    montage_img.image_add(frame_img)
+                    with Image() as big_montage:
+                        for s, t in zip(bsv3_result[1], bsv3_result[2]):
+                            with Image() as montage_img:
+                                for i in range(t):
+                                    with next(bsv3_result[0]) as frame_img:
+                                        frame_img.border(
+                                            color="darksalmon",
+                                            width=5,
+                                            height=5,
+                                        )
+                                        montage_img.image_add(frame_img)
 
-                            montage_img.background_color = "transparent"
-                            montage_img.montage(
-                                tile=f"{montage_max_ncol}x",
-                                thumbnail="+0+0",
-                            )
-                            montage_img.border(color="darksalmon", width=5, height=5)
-                            # Write state label.
-                            montage_img.background_color = "indianred"
-                            montage_img.splice(
-                                x=0,
-                                y=0,
-                                width=0,
-                                height=256,
-                            )
-                            with Drawing() as ctx:
-                                ctx.font_family = "Alegreya ExtraBold"
-                                ctx.font_style = "italic"
-                                ctx.font_size = 200
-                                ctx.text_kerning = 8
-                                ctx.fill_color = "antiquewhite"
-                                montage_img.annotate(
-                                    s,
-                                    ctx,
-                                    left=64,
-                                    baseline=190,
+                                montage_img.background_color = "transparent"
+                                montage_img.compression_quality = image_quality
+                                montage_img.montage(
+                                    tile=f"{montage_max_ncol}x",
+                                    thumbnail="+0+0",
                                 )
+                                montage_img.border(
+                                    color="darksalmon", width=5, height=5
+                                )
+                                # Write state label.
+                                montage_img.background_color = "indianred"
+                                montage_img.splice(
+                                    x=0,
+                                    y=0,
+                                    width=0,
+                                    height=256,
+                                )
+                                with Drawing() as ctx:
+                                    ctx.font_family = "Alegreya ExtraBold"
+                                    ctx.font_style = "italic"
+                                    ctx.font_size = 200
+                                    ctx.text_kerning = 8
+                                    ctx.fill_color = "antiquewhite"
+                                    montage_img.annotate(
+                                        s,
+                                        ctx,
+                                        left=64,
+                                        baseline=190,
+                                    )
 
-                                # Save the final result.
-                                finalresult = Path(target, f"{s}.{extension}")
-                                montage_img.save(filename=finalresult)
+                                    big_montage.image_add(montage_img)
+
+                        big_montage.background_color = "transparent"
+                        big_montage.compression_quality = image_quality
+                        big_montage.montage(tile="1x", thumbnail="+0+0")
+
+                        # Save the final result.
+                        finalresult = Path(target, f"{filename}.{extension}")
+                        big_montage.save(filename=finalresult)
 
         n += 1
 

@@ -45,13 +45,13 @@ for in_path_str in args.input.split(" "):
 
                 nrow = int(math.sqrt(max_frame_number))
                 ncol = math.ceil(max_frame_number / nrow)
-                for statename in sorted([k.name for k in variation.glob("*/")]):
-                    statename = Path(variation, statename)
+                states = sorted([k.name for k in variation.glob("*/")])
+                if len(states) == 0:
                     with Image() as montage_img:
                         for i in range(
-                            len(list(statename.glob(f"*.{input_extension}")))
+                            len(list(variation.glob(f"*.{input_extension}")))
                         ):
-                            imagepath = Path(statename, f"{i}.{input_extension}")
+                            imagepath = Path(variation, f"{i}.{input_extension}")
                             with Image(filename=imagepath) as frame:
                                 frame.border("darksalmon", width=5, height=5)
                                 montage_img.image_add(frame)
@@ -73,16 +73,53 @@ for in_path_str in args.input.split(" "):
                             ctx.text_kerning = 8
                             ctx.fill_color = "antiquewhite"
                             montage_img.annotate(
-                                statename.stem,
+                                variation.name,
                                 ctx,
                                 left=64,
                                 baseline=190,
                             )
                         big_montage_img.image_add(montage_img)
+                else:
+                    for statename in states:
+                        statename = Path(variation, statename)
+                        with Image() as montage_img:
+                            for i in range(
+                                len(list(statename.glob(f"*.{input_extension}")))
+                            ):
+                                imagepath = Path(statename, f"{i}.{input_extension}")
+                                with Image(filename=imagepath) as frame:
+                                    frame.border("darksalmon", width=5, height=5)
+                                    montage_img.image_add(frame)
+
+                            montage_img.background_color = "transparent"
+                            montage_img.montage(tile=f"{ncol}x", thumbnail="+0+0")
+                            montage_img.border("darksalmon", width=5, height=5)
+                            montage_img.background_color = "indianred"
+                            montage_img.splice(
+                                x=0,
+                                y=0,
+                                width=0,
+                                height=256,
+                            )
+                            font_size = montage_img.width // len(statename.stem)
+                            with Drawing() as ctx:
+                                ctx.font_family = "Alegreya ExtraBold"
+                                ctx.font_style = "italic"
+                                ctx.font_size = min(11 / 8 * font_size, 200)
+                                ctx.text_kerning = 8
+                                ctx.fill_color = "antiquewhite"
+                                montage_img.annotate(
+                                    statename.stem,
+                                    ctx,
+                                    left=64,
+                                    baseline=190,
+                                )
+                            big_montage_img.image_add(montage_img)
                 big_montage_img.background_color = "transparent"
                 big_montage_img.montage(tile="1x", thumbnail="+0+0")
                 target = Path(out_path, variation.relative_to(entity.parent))
                 target.mkdir(parents=True, exist_ok=True)
+                big_montage_img.compression_quality = 100
                 big_montage_img.save(filename=Path(target, f"sheet.{output_extension}"))
 
     else:
