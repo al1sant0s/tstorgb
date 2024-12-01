@@ -57,6 +57,30 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--border_color",
+    help="The color of the borders between the frames on the sheet.",
+    default="darksalmon",
+)
+
+parser.add_argument(
+    "--label_background_color",
+    help="The background color of the labels on the sheet.",
+    default="indianred",
+)
+
+parser.add_argument(
+    "--font",
+    help="Font used for the labels on the sheet.",
+    default="Alegreya ExtraBold, Arial-MT-Extra-Bold",
+)
+
+parser.add_argument(
+    "--font_color",
+    help="Font color used for the labels on the sheet.",
+    default="antiquewhite",
+)
+
+parser.add_argument(
     "--search_zip",
     help="If enabled, zip files named '1' within specified directories will be extracted.",
     action="store_true",
@@ -146,7 +170,7 @@ for directory in directiories:
                                 for i in range(t):
                                     with next(bsv3_result[0]) as frame_img:
                                         frame_img.border(
-                                            color="darksalmon",
+                                            color=args.border_color,
                                             width=5,
                                             height=5,
                                         )
@@ -159,10 +183,12 @@ for directory in directiories:
                                     thumbnail="+0+0",
                                 )
                                 montage_img.border(
-                                    color="darksalmon", width=5, height=5
+                                    color=args.border_color, width=5, height=5
                                 )
                                 # Write state label.
-                                montage_img.background_color = "indianred"
+                                montage_img.background_color = (
+                                    args.label_background_color
+                                )
                                 montage_img.splice(
                                     x=0,
                                     y=0,
@@ -170,11 +196,11 @@ for directory in directiories:
                                     height=256,
                                 )
                                 with Drawing() as ctx:
-                                    ctx.font_family = "Alegreya ExtraBold"
+                                    ctx.font_family = args.font
                                     ctx.font_style = "italic"
                                     ctx.font_size = 200
                                     ctx.text_kerning = 8
-                                    ctx.fill_color = "antiquewhite"
+                                    ctx.fill_color = args.font_color
                                     montage_img.annotate(
                                         s,
                                         ctx,
