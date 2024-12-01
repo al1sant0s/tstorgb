@@ -1,18 +1,20 @@
 import numpy as np
+import argparse
 from wand.image import Image
 from wand.drawing import Drawing
 from tsto_rgb_bsv3_converter import rgb_parser, bsv3_parser
 from pathlib import Path
-from zipfile import ZipFile
+from zipfile import ZipFile, is_zipfile
+
+
+def progress_str(n, total, filename, extension):
+    return f"Progress ({n * 100 / total:.2f}%) : [{total - n} rgb file(s) left] ---> {filename}.{extension}"
+
 
 # Warning: this script requires ImageMagick to work. If you do not have installed in your machine,
 # you will have to install it before using the script.
 
 # Settings
-zipfilename = "1"
-convertdir = "processed"
-image_quality = 100
-expand_bsv3 = True  # If set to True, bsv3 files will be processed (leave this value set to 1 to get the animated sprites).
 individual_frames = True  # If set to True, individual frames will be made. If set to false, a montage will be made.
 
 # Edit this if you want a different resulting image format.
@@ -22,12 +24,50 @@ individual_frames = True  # If set to True, individual frames will be made. If s
 # of the image being processed beforehand.
 extension = "webp"
 
+parser = argparse.ArgumentParser()
+
+parser.add_argument(
+    "input_dir",
+    help="List of directories containing the rgb files.",
+)
+
+parser.add_argument(
+    "output_dir",
+    help="Path to the directory where results will be stored.",
+)
+
+parser.add_argument(
+    "--image_quality",
+    help="Percentage specifying image quality (default 100).",
+    default=100,
+    type=int,
+)
+
+parser.add_argument(
+    "--disable_bsv3",
+    help="If this option is enabled, bsv3 files will be ignored and animated sprites will not be generated. \
+Leave this option alone if you want to get the complete animations.",
+    action="store_true",
+)
+
+parser.add_argument(
+    "--make_sheet",
+    help="If this option is enabled, frames will be stored in a single image. Otherwise, individual frames will be saved.",
+    action="store_true",
+)
+
+parser.add_argument(
+    "--search_zip",
+    help="If enabled, zip files named '1' within specified directories will be extracted.",
+    action="store_true",
+)
+
+args = parser.parse_args()
+directiories = [Path(item) for item in args.input_dir.split(" ")]
+
 print("\n\n--- CONVERTING RGB FILES ---\n\n")
 
 print("Getting list of files to extract - ", end="")
-
-# Fetch a list of files to unzip.
-ziplist = list(Path(Path.cwd()).glob(f"**/{zipfilename}"))
 
 print("[DONE!]\n\n")
 
@@ -35,42 +75,37 @@ print("[DONE!]\n\n")
 n = 1
 total = 0
 
-
-def progress_str(n, total, filename, extension):
-    return f"Progress ({n * 100 / total:.2f}%) : [{total - n} rgb file(s) left] ---> {filename}.{extension}"
-
-
 print("Counting the number of files to convert (this might take a while) - ", end="")
 
-# Get total of files to convert.
-for zipfile in ziplist:
-    with ZipFile(zipfile) as zObject:
-        total += [".rgb" in str(i) for i in zObject.infolist()].count(True)
+# Get total of files to convert and extract zipped files.
+if args.search_zip:
+    for directory in directiories:
+        for item in directory.glob("**/1"):
+            if is_zipfile(item) is True:
+                with ZipFile(item) as ZObject:
+                    ZObject.extractall(path=Path(item.parent, "extracted"))
+                    total += [".rgb" in str(i) for i in ZObject.infolist()].count(True)
+
+total += len([item for item in Path(args.input_dir).glob("**/*.rgb")])
 
 print(f"[{total} file(s) found!]\n\n")
 
 print("--- Starting conversion of rgb images ---")
 
-for zipfile in ziplist:
-    assets = Path(zipfile.parent, "assets")
-
-    # Unzip file.
-    with ZipFile(zipfile) as zObject:
-        zObject.extractall(path=assets)
-
-    for file in assets.glob("*.rgb"):
+for directory in directiories:
+    for file in directory.glob("**/*.rgb"):
         filename = file.stem
 
         # Set destination of the converted rgb files.
-        dest = Path(assets, convertdir)
-        dest.mkdir(exist_ok=True)
+        target = Path(args.output_dir)
+        target.mkdir(exist_ok=True)
 
         entity = filename.split("_", maxsplit=1)
 
         if len(entity) == 2:
-            target = Path(dest, entity[0], entity[1].split("_image", maxsplit=1)[0])
+            target = Path(target, entity[0], entity[1].split("_image", maxsplit=1)[0])
         else:
-            target = Path(dest, entity[0], "_default")
+            target = Path(target, entity[0], "_default")
 
         target.mkdir(parents=True, exist_ok=True)
 
@@ -82,10 +117,10 @@ for zipfile in ziplist:
             continue
 
         with rgb_image as baseimage:
-            bsv3_file = Path(assets, filename + ".bsv3")
+            bsv3_file = Path(file.parent, filename + ".bsv3")
 
             # Save image or process animation.
-            if expand_bsv3 is False or bsv3_file.exists() is False:
+            if args.disable_bsv3 or bsv3_file.exists() is False:
                 baseimage.save(filename=Path(target, f"{filename}.{extension}"))
 
             else:
@@ -98,21 +133,7 @@ for zipfile in ziplist:
                     continue
 
                 # How the frames will be saved.
-                if individual_frames is True:
-                    for s, t in zip(bsv3_result[1], bsv3_result[2]):
-                        dest = Path(target, s)
-                        dest.mkdir(exist_ok=True)
-                        for i in range(t):
-                            with next(bsv3_result[0]) as frame_img:
-                                frame_img.compression_quality = image_quality
-                                frame_img.save(
-                                    filename=Path(
-                                        target,
-                                        Path(dest, f"{i}.{extension}"),
-                                    )
-                                )
-
-                else:
+                if args.make_sheet:
                     max_number_frames = max(bsv3_result[2])
                     montage_max_nrow = int(np.sqrt(max_number_frames))
                     montage_max_ncol = int(
@@ -132,7 +153,7 @@ for zipfile in ziplist:
                                         montage_img.image_add(frame_img)
 
                                 montage_img.background_color = "transparent"
-                                montage_img.compression_quality = image_quality
+                                montage_img.compression_quality = args.image_quality
                                 montage_img.montage(
                                     tile=f"{montage_max_ncol}x",
                                     thumbnail="+0+0",
@@ -164,12 +185,26 @@ for zipfile in ziplist:
                                     big_montage.image_add(montage_img)
 
                         big_montage.background_color = "transparent"
-                        big_montage.compression_quality = image_quality
+                        big_montage.compression_quality = args.image_quality
                         big_montage.montage(tile="1x", thumbnail="+0+0")
 
                         # Save the final result.
                         finalresult = Path(target, f"{filename}.{extension}")
                         big_montage.save(filename=finalresult)
+
+                else:
+                    for s, t in zip(bsv3_result[1], bsv3_result[2]):
+                        dest = Path(target, s)
+                        dest.mkdir(exist_ok=True)
+                        for i in range(t):
+                            with next(bsv3_result[0]) as frame_img:
+                                frame_img.compression_quality = args.image_quality
+                                frame_img.save(
+                                    filename=Path(
+                                        dest,
+                                        f"{i}.{extension}",
+                                    )
+                                )
 
         n += 1
 
