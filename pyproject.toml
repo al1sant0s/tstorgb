@@ -8,7 +8,7 @@ version = "0.0.2"
 authors = [
   { name="al1sant0s", email="cnctalissonsantos@gmail.com" },
 ]
-description = "Convert any rgb files from TSTO into proper images."
+description = "Convert any rgb files from The 'Simpons: Tapped Out' game into proper images."
 readme = "README.md"
 requires-python = ">=3.8"
 classifiers = [
