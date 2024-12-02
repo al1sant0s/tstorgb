@@ -5,7 +5,7 @@ import numpy as np
 import argparse
 
 parser = argparse.ArgumentParser(
-    description="With this tool you can generate sprite sheets from previous images produced with the 'tsto_convert_rgb' tool.",
+    description="With this tool you can generate sprite sheets from previous images produced with the 'convert' tool.",
     formatter_class=argparse.ArgumentDefaultsHelpFormatter,
 )
 parser.add_argument(

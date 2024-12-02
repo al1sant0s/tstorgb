@@ -2,7 +2,7 @@ import numpy as np
 import argparse
 from wand.image import Image
 from wand.drawing import Drawing
-from tsto_rgb_bsv3_tools import rgb_parser, bsv3_parser
+from parsers import rgb_parser, bsv3_parser
 from pathlib import Path
 from zipfile import ZipFile, is_zipfile
 
@@ -17,7 +17,7 @@ def progress_str(n, total, filename, extension):
 parser = argparse.ArgumentParser(
     description="""
     This tool allows you to convert the raw RGB assets from 'The Simpsons: Tapped Out' game into proper images.
-    It uses ImageMagick to perform the convertion. So you are required to install it in your system in order for the tool to work.
+    It uses ImageMagick to perform the conversion. So you are required to install it in your system in order for the tool to work.
     Multiple options are available for customizing the results. You can choose the file extension of the produced images, where to save it, etc.
     Check the help for more information.
     """,
