@@ -2,7 +2,7 @@ import numpy as np
 import argparse
 from wand.image import Image
 from wand.drawing import Drawing
-from tsto_rgb_bsv3_converter import rgb_parser, bsv3_parser
+from tsto_rgb_bsv3_parsers import rgb_parser, bsv3_parser
 from pathlib import Path
 from zipfile import ZipFile, is_zipfile
 
@@ -14,21 +14,19 @@ def progress_str(n, total, filename, extension):
 # Warning: this script requires ImageMagick to work. If you do not have installed in your machine,
 # you will have to install it before using the script.
 
-# Settings
-individual_frames = True  # If set to True, individual frames will be made. If set to false, a montage will be made.
-
-# Edit this if you want a different resulting image format.
-# You can choose between most of ImageMagick supported image formats like png32, tiff, jpg, etc.
-# Check ImageMagick documentation for more info about the image formats you can use.
-# Raw image formats are not supported though because it requires you to specify the depth and image size
-# of the image being processed beforehand.
-extension = "webp"
-
-parser = argparse.ArgumentParser()
+parser = argparse.ArgumentParser(
+    description="""
+    This tool allows you to convert the raw RGB assets from 'The Simpsons: Tapped Out' game into proper images.
+    It uses ImageMagick to perform the convertion. So you are required to install it in your system in order for the tool to work.
+    Multiple options are available for customizing the results. You can choose the file extension of the produced images, where to save it, etc.
+    Check the help for more information.
+    """,
+    formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+)
 
 parser.add_argument(
     "input_dir",
-    help="List of directories containing the rgb files.",
+    help="List of comma separated directories containing the rgb files.",
 )
 
 parser.add_argument(
@@ -37,8 +35,20 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--output_extension",
+    help="""
+    Image format used for the exported images.
+    You can choose between most of ImageMagick supported image formats like png32, tiff, jpg, etc.
+    Check ImageMagick documentation for more info about the image formats you can use.
+    Raw image formats are not supported though because it would require you to specify the depth and image size
+    of the image being processed beforehand.
+    """,
+    default="png",
+)
+
+parser.add_argument(
     "--image_quality",
-    help="Percentage specifying image quality (default 100).",
+    help="Percentage specifying image quality.",
     default=100,
     type=int,
 )
@@ -87,7 +97,7 @@ parser.add_argument(
 )
 
 args = parser.parse_args()
-directiories = [Path(item) for item in args.input_dir.split(" ")]
+directiories = [Path(item) for item in args.input_dir.split(",")]
 
 print("\n\n--- CONVERTING RGB FILES ---\n\n")
 
@@ -145,7 +155,9 @@ for directory in directiories:
 
             # Save image or process animation.
             if args.disable_bsv3 or bsv3_file.exists() is False:
-                baseimage.save(filename=Path(target, f"{filename}.{extension}"))
+                baseimage.save(
+                    filename=Path(target, f"{filename}.{args.output_extension}")
+                )
 
             else:
                 bsv3_result = bsv3_parser(
@@ -153,19 +165,19 @@ for directory in directiories:
                 )
 
                 if bsv3_result is False:
-                    baseimage.save(filename=Path(target, f"{filename}.{extension}"))
+                    baseimage.save(
+                        filename=Path(target, f"{filename}.{args.output_extension}")
+                    )
                     continue
 
                 # How the frames will be saved.
                 if args.make_sheet:
                     max_number_frames = max(bsv3_result[2])
-                    montage_max_nrow = int(np.sqrt(max_number_frames))
-                    montage_max_ncol = int(
-                        np.ceil(max_number_frames / montage_max_nrow)
-                    )
+                    nrow = int(np.sqrt(max_number_frames))
+                    ncol = int(np.ceil(max_number_frames / nrow))
 
-                    with Image() as big_montage:
-                        for s, t in zip(bsv3_result[1], bsv3_result[2]):
+                    with Image() as big_montage_img:
+                        for statename, t in zip(bsv3_result[1], bsv3_result[2]):
                             with Image() as montage_img:
                                 for i in range(t):
                                     with next(bsv3_result[0]) as frame_img:
@@ -179,13 +191,13 @@ for directory in directiories:
                                 montage_img.background_color = "transparent"
                                 montage_img.compression_quality = args.image_quality
                                 montage_img.montage(
-                                    tile=f"{montage_max_ncol}x",
+                                    tile=f"{ncol}x",
                                     thumbnail="+0+0",
                                 )
                                 montage_img.border(
                                     color=args.border_color, width=5, height=5
                                 )
-                                # Write state label.
+                                # Write label.
                                 montage_img.background_color = (
                                     args.label_background_color
                                 )
@@ -195,28 +207,31 @@ for directory in directiories:
                                     width=0,
                                     height=256,
                                 )
+                                font_size = montage_img.width // len(statename)
                                 with Drawing() as ctx:
                                     ctx.font_family = args.font
                                     ctx.font_style = "italic"
-                                    ctx.font_size = 200
+                                    ctx.font_size = min(11 / 8 * font_size, 200)
                                     ctx.text_kerning = 8
                                     ctx.fill_color = args.font_color
                                     montage_img.annotate(
-                                        s,
+                                        statename,
                                         ctx,
                                         left=64,
                                         baseline=190,
                                     )
 
-                                    big_montage.image_add(montage_img)
+                                    big_montage_img.image_add(montage_img)
 
-                        big_montage.background_color = "transparent"
-                        big_montage.compression_quality = args.image_quality
-                        big_montage.montage(tile="1x", thumbnail="+0+0")
+                        big_montage_img.background_color = "transparent"
+                        big_montage_img.compression_quality = args.image_quality
+                        big_montage_img.montage(tile="1x", thumbnail="+0+0")
 
                         # Save the final result.
-                        finalresult = Path(target, f"{filename}.{extension}")
-                        big_montage.save(filename=finalresult)
+                        finalresult = Path(
+                            target, f"{filename}.{args.output_extension}"
+                        )
+                        big_montage_img.save(filename=finalresult)
 
                 else:
                     for s, t in zip(bsv3_result[1], bsv3_result[2]):
@@ -228,7 +243,7 @@ for directory in directiories:
                                 frame_img.save(
                                     filename=Path(
                                         dest,
-                                        f"{i}.{extension}",
+                                        f"{i}.{args.output_extension}",
                                     )
                                 )
 
