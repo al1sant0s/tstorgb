@@ -2,7 +2,7 @@ import numpy as np
 import argparse
 from wand.image import Image
 from wand.drawing import Drawing
-from tsto_rgb_bsv3_parsers import rgb_parser, bsv3_parser
+from tsto_rgb_bsv3_tools import rgb_parser, bsv3_parser
 from pathlib import Path
 from zipfile import ZipFile, is_zipfile
 
