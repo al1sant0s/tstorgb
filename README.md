@@ -6,5 +6,5 @@ Multiple options are available for customizing the results. You can choose the f
 Check the help for more information.
 
 ```python
-python3 tsto_convert.py --help
+python3 src/tsto_convert.py --help
 ```
