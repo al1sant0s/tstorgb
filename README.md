@@ -51,7 +51,7 @@ If you have your rgb files inside a zip file named '1', you can pass the --searc
 python3 -m tstorgb.convert --search_zip rgb_dir destination
 ```
 
-If you prefer to save the images as sprite sheets, you can pass the --make_sheet argument. **This is only applies for images that were generated from a bsv3 file and a single rgb file.** Characters, for instance, have their sprites across several rgb files. But don't worry! You can still generate sprite sheets using the 'montage' tool discussed bellow.
+If you prefer to save the images as sprite sheets, you can pass the --make_sheet argument. **This is only applies for images that were generated from a bsv3 file and a single rgb file.** Characters, for instance, have their sprites across several rgb files. But don't worry! You can still generate sprite sheets for characters using the 'montage' tool discussed bellow.
 
 ```
 python3 -m tstorgb.convert --search_zip --make_sheet rgb_dir destination
