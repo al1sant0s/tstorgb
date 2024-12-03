@@ -70,12 +70,20 @@ if __name__ == "__main__":
     if out_path.exists() is False:
         out_path.mkdir()
 
+    # Get total of montages.
+    n = 0
+    total = np.sum(
+        [len(list(Path(k).glob("*/"))) for k in [k for k in args.input_dir.split(",")]]
+    )
+
     # Start making the montages.
     for in_path_str in args.input_dir.split(","):
         entity = Path(in_path_str)
 
         if entity.exists() is True:
             for variation in entity.glob("*/"):
+                n += 1
+                print(f"Montage: {n}/{total}", end="\r")
                 with Image() as big_montage_img:
                     states = sorted([k.name for k in variation.glob("*/")])
                     if len(states) == 0:
