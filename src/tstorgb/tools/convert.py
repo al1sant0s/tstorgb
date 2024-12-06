@@ -8,10 +8,11 @@ def progress_str(n, total, filename, extension):
     return f"Progress ({n * 100 / total:.2f}%) : [{total - n} rgb file(s) left] ---> {filename}.{extension}"
 
 
-# Warning: this script requires ImageMagick to work. If you do not have installed in your machine,
+# Warning: this script requires libvips to work. If you do not have installed in your machine,
 # you will have to install it before using the script.
 
-if __name__ == "__main__":
+
+def main():
     parser = argparse.ArgumentParser(
         description="""
         This tool allows you to convert the raw RGB assets from 'The Simpsons: Tapped Out' game into proper images.

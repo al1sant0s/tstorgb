@@ -16,7 +16,7 @@ it will save the results in a directory you provide. For example, supposing the 
 to the 'destination' directory, you would issue the following command:
 
 ```
-python3 -m tstorgb.convert rgb_dir destination
+tstorgb rgb_dir destination
 ```
 
 The images will be saved in subdirectories within the destination directory. Each subdirectory corresponds to a certain entity. For example, if there were two rgb files in 'rgb_dir', one named
@@ -44,17 +44,17 @@ When a file corresponding to an entity doesn't specifiy a variation (a filename 
 If you have your rgb files inside a zip file named '1', you can pass the --search_zip argument to deal with the extraction.
 
 ```
-python3 -m tstorgb.convert --search_zip rgb_dir destination
+tstorgb --search_zip rgb_dir destination
 ```
 
 If you prefer to use another file extension than png you can use the --output_extension argument.
 
 ```
-python3 -m tstorgb.convert --search_zip --output_extension webp rgb_dir destination
+tstorgb --search_zip --output_extension webp rgb_dir destination
 ```
 
 For more information about the other arguments the 'convert' tool supports check the help.
 
 ```
-python3 -m tstorgb.convert --help
+tstorgb --help
 ```

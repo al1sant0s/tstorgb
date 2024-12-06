@@ -4,11 +4,11 @@ build-backend = "hatchling.build"
 
 [project]
 name = "tstorgb"
-version = "0.0.7"
+version = "0.0.9"
 authors = [
   { name="al1sant0s", email="cnctalissonsantos@gmail.com" },
 ]
-description = "Convert any rgb files from The 'Simpons: Tapped Out' game into proper images."
+description = "Convert any rgb files from The 'Simpsons: Tapped Out' game into proper images."
 readme = "README.md"
 requires-python = ">=3.8"
 classifiers = [
@@ -17,6 +17,9 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = ["numpy", "pyvips"]
+
+[project.scripts]
+tstorgb = "tstorgb.tools.convert:main"
 
 [project.urls]
 Homepage = "https://github.com/al1sant0s/tstorgb"
