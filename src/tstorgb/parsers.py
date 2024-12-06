@@ -1,5 +1,6 @@
 import numpy as np
-from wand.image import Image
+from pyvips import Image
+import wand
 
 
 def report_progress(prefix_str, parsing_info):
@@ -17,43 +18,39 @@ def rgb_parser(file, show_progress=False, prefix_str=""):
         f.seek(2)
         check = int.from_bytes(f.read(2), byteorder="little")
 
+        width = int.from_bytes(f.read(2), byteorder="little")
+        height = int.from_bytes(f.read(2), byteorder="little")
+
+        pixel_data = np.zeros((height, width, 4))
         if check == 8192:
-            depth = 4
+            for i in range(height):
+                for j in range(width):
+                    rgba_bits = int.from_bytes(
+                        f.read(2), byteorder="little", signed=False
+                    )
+                    pixel_data[i, j, 0] = ((rgba_bits >> 12) & 15) * 255 / 15  # Red
+                    pixel_data[i, j, 1] = ((rgba_bits >> 8) & 15) * 255 / 15  # Green
+                    pixel_data[i, j, 2] = ((rgba_bits >> 4) & 15) * 255 / 15  # Blue
+                    pixel_data[i, j, 3] = ((rgba_bits >> 0) & 15) * 255 / 15  # Alpha
         elif check == 0:
-            depth = 8
+            for i in range(height):
+                for j in range(width):
+                    pixel_data[i, j, 0] = int.from_bytes(f.read(1), signed=False)  # Red
+                    pixel_data[i, j, 1] = int.from_bytes(
+                        f.read(1), signed=False
+                    )  # green
+                    pixel_data[i, j, 2] = int.from_bytes(
+                        f.read(1), signed=False
+                    )  # Blue
+                    pixel_data[i, j, 3] = int.from_bytes(
+                        f.read(1), signed=False
+                    )  # Alpha
         else:
             # Unsupported signature,
             return False
 
-        width = int.from_bytes(f.read(2), byteorder="little")
-        height = int.from_bytes(f.read(2), byteorder="little")
-
-        buffer = f.read()
-
-    # Get base image
-    with Image() as rgb_img:
-        with Image(
-            blob=buffer,
-            width=width,
-            height=height,
-            depth=depth,
-            format="rgba",
-        ) as img:
-            # Swap collor channels for 4 bit depth.
-            if depth == 4:
-                rgb_img.image_add(img.channel_images["blue"])  # type: ignore
-                rgb_img.image_add(img.channel_images["alpha"])  # type: ignore
-                rgb_img.image_add(img.channel_images["red"])  # type: ignore
-                rgb_img.image_add(img.channel_images["green"])  # type: ignore
-                rgb_img.combine(colorspace="srgb")
-            # For 8 bit depth this is not necessary.
-            elif depth == 8:
-                rgb_img.image_add(img)
-
-        # Revert alpha premultiply.
-        rgb_img.image_set(rgb_img.fx("u/u.a", channel="rgb"))
-
-        return rgb_img.clone()
+        # Get base image
+        return Image.new_from_array(pixel_data, interpretation="srgb").unpremultiply()  # type: ignore
 
 
 def bsv3_parser(bsv3_file, rgb_img, show_progress=False, prefix_str=""):
@@ -202,40 +199,39 @@ def bsv3_259(bsv3_file, rgb_img, show_progress=False, prefix_str=""):
             prefix_str,
         ):
             for i in range(blocks):
-                with Image(
-                    width=canvas_dim[0], height=canvas_dim[1], background="transparent"
-                ) as frame_img:
-                    if show_progress is True:
-                        report_progress(prefix_str, f"[{i + 1}/{blocks}]")
+                if show_progress is True:
+                    report_progress(prefix_str, f"[{i + 1}/{blocks}]")
 
-                    for j in reversed(range(subcells[i])):
-                        # Crop the cell.
-                        with rgb_img.clone() as subcell:
-                            subcell.crop(
-                                cell[index[i][j]][0],
-                                cell[index[i][j]][1],
-                                width=cell[index[i][j]][2],
-                                height=cell[index[i][j]][3],
-                            )
+                frame_img = Image.new_from_array(
+                    np.zeros((canvas_dim[1], canvas_dim[0], 4)),
+                    interpretation="srgb",
+                )
 
-                            subcell.image_set(subcell.fx(f"u * {alpha[i][j]}/255"))
-                            subcell.virtual_pixel = "transparent"
-                            subcell.distort(
-                                "affine_projection",
-                                affine_matrix[i][j, 0:3, 0:2].flatten().tolist(),
-                                best_fit=True,
-                            )
-
-                            # Get coordinates.
-                            coords = a[i][..., j] - c[..., 0]
-
-                            # Set composition.
-                            frame_img.composite(
-                                image=subcell,
-                                left=coords[0],
-                                top=coords[1],
-                            )
+                if subcells[i] == 0:
                     yield frame_img
+                    continue
+
+                subcell = [0 for _ in range(subcells[i])]
+                for j in range(subcells[i]):
+                    # Crop the cell.
+                    subcell[j] = rgb_img.crop(
+                        cell[index[i][j]][0],
+                        cell[index[i][j]][1],
+                        cell[index[i][j]][2],
+                        cell[index[i][j]][3],
+                    )
+                    subcell[j] *= [1, 1, 1, alpha[i][j] / 255]  # type: ignore
+                    subcell[j] = subcell[j].affine(  # type: ignore
+                        affine_matrix[i][j, 0:2, 0:2].transpose().flatten().tolist(),
+                        extend="background",
+                    )
+
+                yield frame_img.composite(  # type: ignore
+                    subcell,
+                    mode="over",
+                    x=(a[i][0, ...] - c[0, 0]).tolist(),
+                    y=(a[i][1, ...] - c[1, 0]).tolist(),
+                )
 
         frame_iterator = generate_frames(
             rgb_img,
@@ -370,40 +366,39 @@ def bsv3_771(bsv3_file, rgb_img, show_progress=False, prefix_str=""):
             prefix_str,
         ):
             for i in range(blocks):
-                with Image(
-                    width=canvas_dim[0], height=canvas_dim[1], background="transparent"
-                ) as frame_img:
-                    if show_progress is True:
-                        report_progress(prefix_str, f"[{i + 1}/{blocks}]")
+                if show_progress is True:
+                    report_progress(prefix_str, f"[{i + 1}/{blocks}]")
 
-                    for j in reversed(frames_items[i]):
-                        # Crop the cell.
-                        with rgb_img.clone() as subcell:
-                            subcell.crop(
-                                cell[index[j]][0],
-                                cell[index[j]][1],
-                                width=cell[index[j]][2],
-                                height=cell[index[j]][3],
-                            )
+                frame_img = Image.new_from_array(
+                    np.zeros((canvas_dim[1], canvas_dim[0], 4)),
+                    interpretation="srgb",
+                )
 
-                            subcell.image_set(subcell.fx(f"u * {alpha[j]}/255"))
-                            subcell.virtual_pixel = "transparent"
-                            subcell.distort(
-                                "affine_projection",
-                                affine_matrix[j, 0:3, 0:2].flatten().tolist(),
-                                best_fit=True,
-                            )
-
-                            # Get coordinates.
-                            coords = a[..., j] - c[..., 0]
-
-                            # Set composition.
-                            frame_img.composite(
-                                image=subcell,
-                                left=coords[0],
-                                top=coords[1],
-                            )
+                if frames_items[i].ndim == 0:
                     yield frame_img
+                    continue
+
+                frame_items = [0 for _ in frames_items[i]]
+                for j, k in zip(frames_items[i], range(len(frame_items))):
+                    # Crop the cell.
+                    frame_items[k] = rgb_img.crop(
+                        cell[index[j]][0],
+                        cell[index[j]][1],
+                        cell[index[j]][2],
+                        cell[index[j]][3],
+                    )
+                    frame_items[k] *= [1, 1, 1, alpha[j] / 255]  # type: ignore
+                    frame_items[k] = frame_items[k].affine(  # type: ignore
+                        affine_matrix[j, 0:2, 0:2].transpose().flatten().tolist(),
+                        extend="background",
+                    )
+
+                yield frame_img.composite(  # type: ignore
+                    frame_items,
+                    mode="over",
+                    x=(a[0, frames_items[i]] - c[0, 0]).tolist(),
+                    y=(a[1, frames_items[i]] - c[1, 0]).tolist(),
+                )
 
         frame_iterator = generate_frames(
             rgb_img,
