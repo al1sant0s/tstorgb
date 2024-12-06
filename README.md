@@ -1,7 +1,7 @@
 # Convert any RGB files from TSTO
 
 This package allows you to convert the raw RGB assets from 'The Simpsons: Tapped Out' game into proper images.
-It uses [**libvips**](https://www.libvips.org/) to perform the conversions. So you are required to install it before using the tool. Multiple options are available for customizing the results. You can choose the file extension of the produced images, where to save it, etc.
+It uses [**libvips**](https://www.libvips.org/) to perform the conversions, so you are required to install it before using the tool. Multiple options are available for customizing the results. You can choose the file extension of the produced images, where to save it, etc.
 
 ## Installation
 
