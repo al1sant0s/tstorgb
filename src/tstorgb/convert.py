@@ -1,5 +1,5 @@
 import argparse
-from parsers import rgb_parser, bsv3_parser
+from .parsers import rgb_parser, bsv3_parser
 from pathlib import Path
 from zipfile import ZipFile, is_zipfile
 
