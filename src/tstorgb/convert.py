@@ -15,7 +15,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="""
         This tool allows you to convert the raw RGB assets from 'The Simpsons: Tapped Out' game into proper images.
-        It uses ImageMagick to perform the conversion. So you are required to install it in your system in order for the tool to work.
+        It uses libvips to perform the conversions, so make sure you have it installed in your system.
         Multiple options are available for customizing the results. You can choose the file extension of the produced images, where to save it, etc.
         Check the help for more information.
         """,
@@ -46,10 +46,8 @@ if __name__ == "__main__":
         "--output_extension",
         help="""
         Image format used for the exported images.
-        You can choose between most of ImageMagick supported image formats like png32, tiff, jpg, etc.
-        Check ImageMagick documentation for more info about the image formats you can use.
-        Raw image formats are not supported though because it would require you to specify the depth and image size
-        of the image being processed beforehand.
+        You can choose between most of libvips supported image formats like png, webp, tiff, jpg, etc.
+        Check libvips documentation for more info about the image formats you can use.
         """,
         default="png",
     )
