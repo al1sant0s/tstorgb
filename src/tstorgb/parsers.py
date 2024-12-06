@@ -210,26 +210,26 @@ def bsv3_259(bsv3_file, rgb_img, show_progress=False, prefix_str=""):
                     yield frame_img
                     continue
 
-                subcell = [0 for _ in range(subcells[i])]
+                subcell_img = [0 for _ in range(subcells[i])]
                 for j in range(subcells[i]):
                     # Crop the cell.
-                    subcell[j] = rgb_img.crop(
+                    subcell_img[j] = rgb_img.crop(
                         cell[index[i][j]][0],
                         cell[index[i][j]][1],
                         cell[index[i][j]][2],
                         cell[index[i][j]][3],
                     )
-                    subcell[j] *= [1, 1, 1, alpha[i][j] / 255]  # type: ignore
-                    subcell[j] = subcell[j].affine(  # type: ignore
+                    subcell_img[j] *= [1, 1, 1, alpha[i][j] / 255]  # type: ignore
+                    subcell_img[j] = subcell_img[j].affine(  # type: ignore
                         affine_matrix[i][j, 0:2, 0:2].transpose().flatten().tolist(),
                         extend="background",
                     )
 
                 yield frame_img.composite(  # type: ignore
-                    subcell,
+                    list(reversed(subcell_img)),
                     mode="over",
-                    x=(a[i][0, ...] - c[0, 0]).tolist(),
-                    y=(a[i][1, ...] - c[1, 0]).tolist(),
+                    x=list(reversed(a[i][0, ...] - c[0, 0])),
+                    y=list(reversed(a[i][1, ...] - c[1, 0])),
                 )
 
         frame_iterator = generate_frames(
@@ -377,26 +377,26 @@ def bsv3_771(bsv3_file, rgb_img, show_progress=False, prefix_str=""):
                     yield frame_img
                     continue
 
-                frame_items = [0 for _ in frames_items[i]]
-                for j, k in zip(frames_items[i], range(len(frame_items))):
+                subcell_img = [0 for _ in frames_items[i]]
+                for j, k in zip(frames_items[i], range(len(subcell_img))):
                     # Crop the cell.
-                    frame_items[k] = rgb_img.crop(
+                    subcell_img[k] = rgb_img.crop(
                         cell[index[j]][0],
                         cell[index[j]][1],
                         cell[index[j]][2],
                         cell[index[j]][3],
                     )
-                    frame_items[k] *= [1, 1, 1, alpha[j] / 255]  # type: ignore
-                    frame_items[k] = frame_items[k].affine(  # type: ignore
+                    subcell_img[k] *= [1, 1, 1, alpha[j] / 255]  # type: ignore
+                    subcell_img[k] = subcell_img[k].affine(  # type: ignore
                         affine_matrix[j, 0:2, 0:2].transpose().flatten().tolist(),
                         extend="background",
                     )
 
                 yield frame_img.composite(  # type: ignore
-                    frame_items,
+                    list(reversed(subcell_img)),
                     mode="over",
-                    x=(a[0, frames_items[i]] - c[0, 0]).tolist(),
-                    y=(a[1, frames_items[i]] - c[1, 0]).tolist(),
+                    x=list(reversed(a[0, frames_items[i]] - c[0, 0])),
+                    y=list(reversed(a[1, frames_items[i]] - c[1, 0])),
                 )
 
         frame_iterator = generate_frames(
