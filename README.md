@@ -58,14 +58,3 @@ For more information about the other arguments the 'convert' tool supports check
 ```
 python3 -m tstorgb.convert --help
 ```
-
-## Disable bsv3 processing
-
-The bsv3 files are used to generate the correct frames. If for some reason you don't want to process the bsv3 files **(not recommended)** you can disable it with the argument --disable_bsv3.
-Disabling the bsv3 processing will prevent the 'convert' tool from generating the frames of the animations and instead it will generate only a single image.
-
-```
-python3 -m tstorgb.convert --search_zip --disable_bsv3 rgb_dir destination
-```
-
-Again, if you use this argument you might not get the results you were expecting.
