@@ -11,7 +11,7 @@ python3 -m pip install tstorgb@git+https://github.com/al1sant0s/tstorgb
 
 ## Simple usage
 
-The convert tool will receive a list of comma separated directories to search for the rgb files, convert them into images of specificied format and then
+The convert tool will receive a list of comma separated directories to search for the rgb files, convert them into images of specified format and then
 it will save the results in a directory you provide. For example, supposing the rgb files are inside a directory called 'rgb_dir' and you want the images to be exported
 to the 'destination' directory, you would issue the following command:
 
