@@ -1,6 +1,5 @@
 import numpy as np
 from pyvips import Image
-import wand
 
 
 def report_progress(prefix_str, parsing_info):
