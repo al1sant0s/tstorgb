@@ -1,5 +1,5 @@
 import argparse
-from .parsers import rgb_parser, bsv3_parser
+from tstorgb.parsers import rgb_parser, bsv3_parser
 from pathlib import Path
 from zipfile import ZipFile, is_zipfile
 
@@ -88,9 +88,6 @@ if __name__ == "__main__":
                 if is_zipfile(item) is True:
                     with ZipFile(item) as ZObject:
                         ZObject.extractall(path=Path(item.parent, "extracted"))
-                        total += [".rgb" in str(i) for i in ZObject.infolist()].count(
-                            True
-                        )
 
     total += len([item for item in Path(args.input_dir).glob("**/*.rgb")])
 
@@ -161,6 +158,6 @@ if __name__ == "__main__":
                             Q=args.image_quality,
                         )
 
-        n += 1
+            n += 1
 
     print("\n\n--- JOB COMPLETED!!! ---\n\n")
