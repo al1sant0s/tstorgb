@@ -114,7 +114,7 @@ def bsv3_259(bsv3_file, rgb_img, show_progress=False, prefix_str=""):
             index.append(np.zeros(subcells[i], dtype=int))
             a.append(np.zeros((2, subcells[i]), dtype=int))
             b.append(np.zeros((2, subcells[i]), dtype=int))
-            affine_matrix.append(np.array([np.identity(3)] * subcells[i]))  # type: ignore
+            affine_matrix.append(np.array([np.identity(2)] * subcells[i]))  # type: ignore
             alpha.append(np.zeros(subcells[i], dtype=int))
 
             for j in range(subcells[i]):
@@ -127,11 +127,10 @@ def bsv3_259(bsv3_file, rgb_img, show_progress=False, prefix_str=""):
                     f.read(8), dtype=np.float32, count=2
                 ).transpose()
 
-                # Get coefficients for the ImageMagick distort matrix
-                # [sx rx 0]
-                # [ry sy 0]
-                # [0 0 1]
-                affine_matrix[i][j, 0:2, 0:2] = np.frombuffer(
+                # Get coefficients for the affine matrix.
+                # [sx rx]
+                # [ry sy]
+                affine_matrix[i][j, ...] = np.frombuffer(
                     f.read(16),
                     dtype=np.float32,
                     count=4,
@@ -145,7 +144,7 @@ def bsv3_259(bsv3_file, rgb_img, show_progress=False, prefix_str=""):
                 )
 
                 # Transform edges.
-                edges = np.matmul(affine_matrix[i][j, 0:2, 0:2], edges)
+                edges = np.matmul(affine_matrix[i][j, ...], edges)
                 edges.sort()
 
                 # Get bottom right corner.
@@ -221,15 +220,19 @@ def bsv3_259(bsv3_file, rgb_img, show_progress=False, prefix_str=""):
                     )
                     subcell_img[j] *= [1, 1, 1, alpha[i][j] / 255]  # type: ignore
                     subcell_img[j] = subcell_img[j].affine(  # type: ignore
-                        affine_matrix[i][j, 0:2, 0:2].transpose().flatten().tolist(),
+                        affine_matrix[i][j, ...].transpose().flatten().tolist(),
                         extend="background",
                     )
 
                 yield frame_img.composite(  # type: ignore
                     list(reversed(subcell_img)),
                     mode="over",
-                    x=list(reversed(a[i][0, ...] - c[0, 0])),
-                    y=list(reversed(a[i][1, ...] - c[1, 0])),
+                    x=list(
+                        reversed(a[i][0, ...] - c[0, 0] + 1)
+                    ),  # Adding one is necessary to centralize the sprite.
+                    y=list(
+                        reversed(a[i][1, ...] - c[1, 0] + 1)
+                    ),  # Adding one is necessary to centralize the sprite.
                 )
 
         frame_iterator = generate_frames(
@@ -276,7 +279,7 @@ def bsv3_771(bsv3_file, rgb_img, show_progress=False, prefix_str=""):
         index = np.zeros(subcells, dtype=int)
         a = np.zeros((2, subcells), dtype=int)
         b = np.zeros((2, subcells), dtype=int)
-        affine_matrix = np.array([np.identity(3)] * subcells)
+        affine_matrix = np.array([np.identity(2)] * subcells)
         alpha = np.zeros(subcells, dtype=int)
 
         for j in range(subcells):
@@ -285,11 +288,10 @@ def bsv3_771(bsv3_file, rgb_img, show_progress=False, prefix_str=""):
             # Get top left corner.
             a[..., j] = np.frombuffer(f.read(8), dtype=np.float32, count=2).transpose()
 
-            # Get coefficients for the ImageMagick distort matrix
-            # [sx rx 0]
-            # [ry sy 0]
-            # [0 0 1]
-            affine_matrix[j, 0:2, 0:2] = np.frombuffer(
+            # Get coefficients for the affine matrix.
+            # [sx rx]
+            # [ry sy]
+            affine_matrix[j, ...] = np.frombuffer(
                 f.read(16),
                 dtype=np.float32,
                 count=4,
@@ -303,7 +305,7 @@ def bsv3_771(bsv3_file, rgb_img, show_progress=False, prefix_str=""):
             )
 
             # Transform edges.
-            edges = np.matmul(affine_matrix[j, 0:2, 0:2], edges)
+            edges = np.matmul(affine_matrix[j, ...], edges)
             edges.sort()
 
             # Get bottom right corner.
@@ -388,15 +390,19 @@ def bsv3_771(bsv3_file, rgb_img, show_progress=False, prefix_str=""):
                     )
                     subcell_img[k] *= [1, 1, 1, alpha[j] / 255]  # type: ignore
                     subcell_img[k] = subcell_img[k].affine(  # type: ignore
-                        affine_matrix[j, 0:2, 0:2].transpose().flatten().tolist(),
+                        affine_matrix[j, ...].transpose().flatten().tolist(),
                         extend="background",
                     )
 
                 yield frame_img.composite(  # type: ignore
                     list(reversed(subcell_img)),
                     mode="over",
-                    x=list(reversed(a[0, frames_items[i]] - c[0, 0])),
-                    y=list(reversed(a[1, frames_items[i]] - c[1, 0])),
+                    x=list(
+                        reversed(a[0, frames_items[i]] - c[0, 0] + 1)
+                    ),  # Adding one is necessary to centralize the sprite.
+                    y=list(
+                        reversed(a[1, frames_items[i]] - c[1, 0] + 1)
+                    ),  # Adding one is necessary to centralize the sprite.
                 )
 
         frame_iterator = generate_frames(

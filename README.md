@@ -1,19 +1,21 @@
 # Convert any RGB files from TSTO
 
 This package allows you to convert the raw RGB assets from 'The Simpsons: Tapped Out' game into proper images.
-It uses [**libvips**](https://www.libvips.org/) to perform the conversions, so make sure you have it installed in your system. Multiple options are available for customizing the results. You can choose the file extension of the produced images, where to save it, etc.
+It uses [**libvips**](https://www.libvips.org/) to perform the conversions.
 
 ## Installation
 
-```python
+First, make sure you install [**libvips**](https://www.libvips.org/install.html) in your system. Then, run the
+following command in the command line:
+
+```
 python3 -m pip install tstorgb@git+https://github.com/al1sant0s/tstorgb
 ```
 
-## Simple usage
+## Usage
 
 The convert tool will receive a list of comma separated directories to search for the rgb files, convert them into images of specified format and then
-it will save the results in a directory you provide. For example, supposing the rgb files are inside a directory called 'rgb_dir' and you want the images to be exported
-to the 'destination' directory, you would issue the following command:
+it will save the results in a directory you provide. For example, supposing the rgb files are inside a directory called 'rgb_dir' and you want the images to be exported to the 'destination' directory, you would issue the following command:
 
 ```
 tstorgb rgb_dir destination
@@ -35,11 +37,11 @@ Sometimes an entity also has variations. Suppose for example there exists 'yello
   - destination/orangehouse
     - destination/orangehouse/_default
 
-In theory, the entity is just the name that preecedes the first underscore character in a filename and the variation is the rest after the underscore excluding the .rgb extension.
-For example, given the name 'something_anything_else.rgb', something is the entity and anything_else is the variation.
-When a file corresponding to an entity doesn't specifiy a variation (a filename without an underscore in it like 'orangehouse.rgb') the _default variation subdirectory will be created.
+In theory, the entity is just the name that precedes the first underscore character in a filename and the variation is the rest after the underscore excluding the .rgb extension.
+For example, given the name 'something_anything_else.rgb', _something_ is the entity and _anything_else_ is the variation.
+When a file corresponding to an entity doesn't specify a variation (a filename without an underscore in it like 'orangehouse.rgb') the _default variation subdirectory will be created.
 
-## Main arguments
+## Arguments
 
 If you have your rgb files inside a zip file named '1', you can pass the --search_zip argument to deal with the extraction.
 
@@ -47,13 +49,13 @@ If you have your rgb files inside a zip file named '1', you can pass the --searc
 tstorgb --search_zip rgb_dir destination
 ```
 
-If you prefer to use another file extension than png you can use the --output_extension argument.
+If you prefer to use a file extension other than png, you can use the --output_extension argument.
 
 ```
 tstorgb --search_zip --output_extension webp rgb_dir destination
 ```
 
-For more information about the other arguments the 'convert' tool supports check the help.
+For more information about the other supported arguments, check the help.
 
 ```
 tstorgb --help
