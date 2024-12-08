@@ -55,16 +55,17 @@ def main():
 
     parser.add_argument(
         "input_dir",
-        help="List of comma separated directories containing the rgb files.",
+        help="List of directories containing the rgb files.",
+        nargs="+",
     )
 
     parser.add_argument(
         "output_dir",
-        help="Path to the directory where results will be stored.",
+        help="Directory where results will be stored.",
     )
 
     args = parser.parse_args()
-    directories = [Path(item) for item in args.input_dir.split(",")]
+    directories = [Path(item) for item in args.input_dir]
 
     print("\n\n--- CONVERTING RGB FILES ---\n\n")
 
