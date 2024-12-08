@@ -64,7 +64,7 @@ def main():
     )
 
     args = parser.parse_args()
-    directiories = [Path(item) for item in args.input_dir.split(",")]
+    directories = [Path(item) for item in args.input_dir.split(",")]
 
     print("\n\n--- CONVERTING RGB FILES ---\n\n")
 
@@ -82,19 +82,24 @@ def main():
 
     # Get total of files to convert and extract zipped files.
     if args.search_zip:
-        for directory in directiories:
+        for directory in directories:
             for item in directory.glob("**/1"):
                 if is_zipfile(item) is True:
                     with ZipFile(item) as ZObject:
                         ZObject.extractall(path=Path(item.parent, "extracted"))
 
-    total += len([item for item in Path(args.input_dir).glob("**/*.rgb")])
+    total = sum(
+        [len(list(Path(directory).glob("**/*.rgb"))) for directory in directories]
+    )
+
+    if total == 0:
+        raise Exception("No rgb files found in the specified directories.")
 
     print(f"[{total} file(s) found!]\n\n")
 
     print("--- Starting conversion of rgb images ---")
 
-    for directory in directiories:
+    for directory in directories:
         for file in directory.glob("**/*.rgb"):
             filename = file.stem
 
