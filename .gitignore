@@ -164,3 +164,4 @@ app.py
 *.swp
 *.un~
 *~
+*.vim

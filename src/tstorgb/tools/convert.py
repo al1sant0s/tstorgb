@@ -1,11 +1,11 @@
 import argparse
-from tstorgb.parsers import rgb_parser, bsv3_parser
+from tstorgb.parsers import bcell_parser, rgb_parser, bsv3_parser, report_progress
 from pathlib import Path
 from zipfile import ZipFile, is_zipfile
 
 
-def progress_str(n, total, filename, extension):
-    return f"Progress ({n * 100 / total:.2f}%) : [{total - n} rgb file(s) left] ---> {filename}.{extension}"
+def progress_str(n, total, filestem, extension):
+    return f"Progress ({n * 100 / total:.2f}%) : [{total - n} rgb file(s) left] ---> {filestem}.{extension}"
 
 
 # Warning: this script requires libvips to work. If you do not have installed in your machine,
@@ -67,15 +67,18 @@ def main():
     args = parser.parse_args()
     directories = [Path(item) for item in args.input_dir]
 
+    # Help with the progress report.
+    n = 1
+    total = 0
+
+    # keep track of bcell files.
+    bcell_set = set()
+
     print("\n\n--- CONVERTING RGB FILES ---\n\n")
 
     print("Getting list of files to extract - ", end="")
 
     print("[DONE!]\n\n")
-
-    # Help with the progress report.
-    n = 1
-    total = 0
 
     print(
         "Counting the number of files to convert (this might take a while) - ", end=""
@@ -91,76 +94,114 @@ def main():
 
     total = sum(
         [len(list(Path(directory).glob("**/*.rgb"))) for directory in directories]
+        + [len(list(Path(directory).glob("**/*.bcell"))) for directory in directories]
     )
 
-    if total == 0:
-        raise Exception("No rgb files found in the specified directories.")
+    # if total == 0:
+    #    raise Exception("No rgb files found in the specified directories.")
 
     print(f"[{total} file(s) found!]\n\n")
 
     print("--- Starting conversion of rgb images ---")
 
+    # Set destination of the converted rgb files.
+    target = Path(args.output_dir)
+    target.mkdir(exist_ok=True)
+
     for directory in directories:
-        for file in directory.glob("**/*.rgb"):
-            filename = file.stem
+        for bcell_file in directory.glob("**/*.bcell"):
+            frames, new_set, blocks = bcell_parser(bcell_file)
 
-            # Set destination of the converted rgb files.
-            target = Path(args.output_dir)
-            target.mkdir(exist_ok=True)
+            bcell_set = bcell_set.union(new_set)
 
-            entity = filename.split("_", maxsplit=1)
-
+            entity = bcell_file.stem.split("_", maxsplit=1)
             if len(entity) == 2:
-                target = Path(
-                    target, entity[0], entity[1].split("_image", maxsplit=1)[0]
-                )
+                target = Path(args.output_dir, entity[0], entity[1])
             else:
-                target = Path(target, entity[0], "_default")
+                target = Path(args.output_dir, entity[0], "_default")
 
             target.mkdir(parents=True, exist_ok=True)
 
-            rgb_image = rgb_parser(file, True, progress_str(n, total, filename, "rgb"))
+            # How the frames will be saved.
+            current_set = set()
+            for i in range(blocks):
+                frame_img, frame_name = next(frames)  # type: ignore
+                frame_img.write_to_file(  # type: ignore
+                    Path(
+                        target,
+                        f"{i}.{args.output_extension}",
+                    ),
+                    Q=args.image_quality,
+                )
+                report_progress(
+                    progress_str(n, total, bcell_file.stem, "bcell"),
+                    f"[{i + 1}/{blocks}]",
+                )
+
+                if frame_name not in current_set:
+                    current_set.add(frame_name)
+                    n += 1
+
+        for file in directory.glob("**/*.rgb"):
+            if file.name in bcell_set:
+                continue
+
+            entity = file.stem.split("_", maxsplit=1)
+
+            if len(entity) == 2:
+                target = Path(
+                    args.output_dir, entity[0], entity[1].split("_image", maxsplit=1)[0]
+                )
+            else:
+                target = Path(args.output_dir, entity[0], "_default")
+
+            target.mkdir(parents=True, exist_ok=True)
+
+            rgb_image = rgb_parser(file)
+            report_progress(progress_str(n, total, file.stem, "rgb"), "")
 
             # Ignore this file if it cannot be parsed.
             if rgb_image is False:
                 n += 1
                 continue
 
-            bsv3_file = Path(file.parent, filename + ".bsv3")
+            bsv3_file = Path(file.parent, file.stem + ".bsv3")
 
             # Save image or process animation.
             if args.disable_bsv3 or bsv3_file.exists() is False:
                 rgb_image.write_to_file(  # type: ignore
-                    Path(target, f"{filename}.{args.output_extension}"),
+                    Path(target, f"{file.stem}.{args.output_extension}"),
                     Q=args.image_quality,
                 )
 
             else:
-                bsv3_result = bsv3_parser(
+                frames, statenames, stateitems, blocks = bsv3_parser(
                     bsv3_file,
                     rgb_image,
-                    True,
-                    progress_str(n, total, filename, "bsv3"),
                 )
 
-                if bsv3_result is False:
+                if frames is False:
                     rgb_image.write_to_file(  # type: ignore
-                        Path(target, f"{filename}.{args.output_extension}"),
+                        Path(target, f"{file.stem}.{args.output_extension}"),
                         Q=args.image_quality,
                     )
                     continue
 
                 # How the frames will be saved.
-                for s, t in zip(bsv3_result[1], bsv3_result[2]):
+                for s, t, u in zip(statenames, stateitems, range(len(stateitems))):
                     dest = Path(target, s)
                     dest.mkdir(exist_ok=True)
                     for i in range(t):
-                        next(bsv3_result[0]).write_to_file(
+                        next(frames).write_to_file(  # type: ignore
                             Path(
                                 dest,
                                 f"{i}.{args.output_extension}",
                             ),
                             Q=args.image_quality,
+                        )
+                        report_progress(
+                            progress_str(n, total, file.stem, "bsv3"),
+                            f"[{i + 1 + sum(stateitems[:u])}/{blocks}]",
                         )
 
             n += 1
