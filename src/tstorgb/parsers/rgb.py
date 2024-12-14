@@ -35,7 +35,7 @@ def rgb_parser(file, byte_seek=0):
                         f.read(1), signed=False
                     )  # Alpha
         else:
-            # Unsupported signature,
+            # Unsupported or invalid file.
             return False
 
         # Get base image

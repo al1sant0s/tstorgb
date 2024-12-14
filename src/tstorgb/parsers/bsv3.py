@@ -11,8 +11,8 @@ def bsv3_parser(bsv3_file, rgb_img):
         elif check == 771:
             return bsv3_771(bsv3_file, rgb_img)
         else:
-            print("Invalid bsv3 signature. Skipping this file.")
-            return (False, list(), list(), 0)
+            # Unsupported or invalid file.
+            return (None, list(), list(), 0, False)
 
 
 def bsv3_259(bsv3_file, rgb_img):
@@ -184,7 +184,7 @@ def bsv3_259(bsv3_file, rgb_img):
             canvas_dim,
         )
 
-        return (frame_iterator, statenames, stateitems, blocks)
+        return (frame_iterator, statenames, stateitems, blocks, True)
 
 
 def bsv3_771(bsv3_file, rgb_img):
@@ -348,4 +348,4 @@ def bsv3_771(bsv3_file, rgb_img):
             frames_items,
         )
 
-        return (frame_iterator, statenames, stateitems, blocks)
+        return (frame_iterator, statenames, stateitems, blocks, True)

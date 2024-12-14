@@ -14,8 +14,8 @@ def bcell_parser(bcell_file):
         if check == "bcell10":
             return bcell_10(bcell_file)
         else:
-            print("Not supported bcell signature. Skipping this file.")
-            return ((False, "null.rgb"), set(), 0)
+            # Unsupported or invalid file.
+            return ((None, "null.rgb"), set(), 0, False)
 
 
 def bcell_13(bcell_file):
@@ -204,7 +204,7 @@ def bcell_13(bcell_file):
             canvas_dim,
         )
 
-        return (frame_iterator, bcell_set, blocks)
+        return (frame_iterator, bcell_set, blocks, True)
 
 
 def bcell_10(bcell_file):
@@ -281,9 +281,9 @@ def bcell_10(bcell_file):
                         a[1, i] - c[1, 0] + 1
                     ),  # Adding one is necessary to centralize the sprite.
                 ),
-                "",
+                "null.rgb",
             )
 
     frame_iterator = generate_frames(subcells_img, blocks, a, c, canvas_dim)
 
-    return (frame_iterator, set(), blocks)
+    return (frame_iterator, set(), blocks, True)

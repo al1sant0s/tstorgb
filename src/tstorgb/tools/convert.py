@@ -8,8 +8,8 @@ def progress_str(n, total, filestem, extension):
     return f"Progress ({n * 100 / total:.2f}%) : [{total - n} rgb file(s) left] ---> {filestem}.{extension}"
 
 
-# Warning: this script requires libvips to work. If you do not have installed in your machine,
-# you will have to install it before using the script.
+# Warning: this script requires libvips to work. If you do not have installed in your system,
+# you will have to install it first before using the script.
 
 
 def main():
@@ -72,13 +72,9 @@ def main():
     total = 0
 
     # keep track of bcell files.
-    bcell_set = set()
+    bcell_set = set("null.rgb")
 
     print("\n\n--- CONVERTING RGB FILES ---\n\n")
-
-    print("Getting list of files to extract - ", end="")
-
-    print("[DONE!]\n\n")
 
     print(
         "Counting the number of files to convert (this might take a while) - ", end=""
@@ -97,8 +93,8 @@ def main():
         + [len(list(Path(directory).glob("**/*.bcell"))) for directory in directories]
     )
 
-    # if total == 0:
-    #    raise Exception("No rgb files found in the specified directories.")
+    if total == 0:
+        raise Exception("No rgb/bcell files found in the specified directories.")
 
     print(f"[{total} file(s) found!]\n\n")
 
@@ -110,7 +106,12 @@ def main():
 
     for directory in directories:
         for bcell_file in directory.glob("**/*.bcell"):
-            frames, new_set, blocks = bcell_parser(bcell_file)
+            frames, new_set, blocks, success = bcell_parser(bcell_file)
+
+            # Unsupported or invalid bcell file.
+            if success is False:
+                print("Unknown bcell signature. Skipping this file.")
+                continue
 
             bcell_set = bcell_set.union(new_set)
 
@@ -175,12 +176,14 @@ def main():
                 )
 
             else:
-                frames, statenames, stateitems, blocks = bsv3_parser(
+                frames, statenames, stateitems, blocks, success = bsv3_parser(
                     bsv3_file,
                     rgb_image,
                 )
 
-                if frames is False:
+                # Unsupported or invalid bsv3 file.
+                if success is False:
+                    print("Unknown bsv3 signature. Skipping this file.")
                     rgb_image.write_to_file(  # type: ignore
                         Path(target, f"{file.stem}.{args.output_extension}"),
                         Q=args.image_quality,
