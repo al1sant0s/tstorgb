@@ -3,7 +3,7 @@
 This package allows you to convert the raw RGB assets from 'The Simpsons: Tapped Out' game into proper images.
 It uses [**libvips**](https://www.libvips.org/) to perform the conversions.
 
-## Currently supported files.
+## Currently supported files
 
   * ✅ **rgb**
   * ✅ **bcell**
