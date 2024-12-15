@@ -72,7 +72,7 @@ def main():
     total = 0
 
     # keep track of bcell files.
-    bcell_set = set("null.rgb")
+    bcell_set = set("")
 
     print("\n\n--- CONVERTING RGB FILES ---\n\n")
 

@@ -15,7 +15,7 @@ def bcell_parser(bcell_file):
             return bcell_10(bcell_file)
         else:
             # Unsupported or invalid file.
-            return ((None, "null.rgb"), set(), 0, False)
+            return ((None, ""), set(), 0, False)
 
 
 def bcell_13(bcell_file):
@@ -85,14 +85,17 @@ def bcell_13(bcell_file):
                     skip = int.from_bytes(f.read(1))
                     f.read(skip)
 
-                    if frames[i][j] == "null":
+                    # Add shadows.
+                    if frames[i][j] == "SHADOW":
+                        subcells_img[i].append(shadow_img.copy())  # type: ignore
+
+                    # Anything else is not supported.
+                    else:
                         # Create empty image
                         subcells_img[i].append(null_img.copy())  # type: ignore
                         f.read(28)
+                        frames[i][j] = "null"
                         continue
-
-                    elif frames[i][j] == "SHADOW":
-                        subcells_img[i].append(shadow_img.copy())  # type: ignore
 
                     a[i][..., j] = np.frombuffer(
                         f.read(8), dtype=np.float32, count=2
@@ -138,22 +141,22 @@ def bcell_13(bcell_file):
                 b[i][..., j] = a[i][..., j] + subcell_dim[i][..., j] + np.array([2, 2])
 
         # Get canvas dimensions.
-        c = np.hstack(
+        c = np.array(
             [
-                a[i]
+                a[i][..., j]
                 for i in range(blocks)
                 for j in range(subcells[i])
                 if frames[i][j] != "null"
             ]
-        )
-        d = np.hstack(
+        ).transpose()
+        d = np.array(
             [
-                b[i]
+                b[i][..., j]
                 for i in range(blocks)
                 for j in range(subcells[i])
                 if frames[i][j] != "null"
             ]
-        )
+        ).transpose()
         c.sort()
         d.sort()
 
@@ -281,7 +284,7 @@ def bcell_10(bcell_file):
                         a[1, i] - c[1, 0] + 1
                     ),  # Adding one is necessary to centralize the sprite.
                 ),
-                "null.rgb",
+                "",
             )
 
     frame_iterator = generate_frames(subcells_img, blocks, a, c, canvas_dim)
