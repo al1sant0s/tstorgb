@@ -5,7 +5,7 @@ from zipfile import ZipFile, is_zipfile
 
 
 def progress_str(n, total, filestem, extension):
-    return f"Progress ({n * 100 / total:.2f}%) : [{total - n} rgb file(s) left] ---> {filestem}.{extension}"
+    return f"Progress ({n * 100 / total:.2f}%) : [{total - n} file(s) left] ---> {filestem}.{extension}"
 
 
 # Warning: this script requires libvips to work. If you do not have installed in your system,
@@ -33,6 +33,18 @@ def main():
         "--disable_bsv3",
         help="If this option is enabled, bsv3 files will be ignored and animated sprites will not be generated. \
     Leave this option alone if you want to get the complete animations.",
+        action="store_true",
+    )
+
+    parser.add_argument(
+        "--disable_bcell",
+        help="If this option is enabled, bcell files will be ignored.",
+        action="store_true",
+    )
+
+    parser.add_argument(
+        "--disable_shadows",
+        help="If this option is enabled, shadows from bcell files will be ignored.",
         action="store_true",
     )
 
@@ -68,7 +80,7 @@ def main():
     directories = [Path(item) for item in args.input_dir]
 
     # Help with the progress report.
-    n = 1
+    n = 0
     total = 0
 
     # keep track of bcell files.
@@ -105,45 +117,56 @@ def main():
     target.mkdir(exist_ok=True)
 
     for directory in directories:
-        for bcell_file in directory.glob("**/*.bcell"):
-            frames, new_set, blocks, success = bcell_parser(bcell_file)
-
-            # Unsupported or invalid bcell file.
-            if success is False:
-                print("Unknown bcell signature. Skipping this file.")
-                continue
-
-            bcell_set = bcell_set.union(new_set)
-
-            entity = bcell_file.stem.split("_", maxsplit=1)
-            if len(entity) == 2:
-                target = Path(args.output_dir, entity[0], entity[1])
-            else:
-                target = Path(args.output_dir, entity[0], "_default")
-
-            target.mkdir(parents=True, exist_ok=True)
-
-            # How the frames will be saved.
-            current_set = set()
-            for i in range(blocks):
-                frame_img, frame_name = next(frames)  # type: ignore
-                frame_img.write_to_file(  # type: ignore
-                    Path(
-                        target,
-                        f"{i}.{args.output_extension}",
-                    ),
-                    Q=args.image_quality,
-                )
-                report_progress(
-                    progress_str(n, total, bcell_file.stem, "bcell"),
-                    f"[{i + 1}/{blocks}]",
+        if args.disable_bcell is False:
+            for bcell_file in directory.glob("**/*.bcell"):
+                frames, new_set, blocks, success = bcell_parser(
+                    bcell_file, disable_shadows=args.disable_shadows
                 )
 
-                if frame_name not in current_set:
-                    current_set.add(frame_name)
-                    n += 1
+                n += 1
+
+                # Unsupported or invalid bcell file.
+                if success is False:
+                    print("Unknown bcell signature. Skipping this file.")
+                    continue
+
+                bcell_set = bcell_set.union(new_set)
+
+                entity = bcell_file.stem.split("_", maxsplit=1)
+                if len(entity) == 2:
+                    target = Path(args.output_dir, entity[0], entity[1])
+                else:
+                    target = Path(args.output_dir, entity[0], "_default")
+
+                target.mkdir(parents=True, exist_ok=True)
+
+                # How the frames will be saved.
+                current_set = set()
+                for i in range(blocks):
+                    frame_img, frame_name = next(frames)  # type: ignore
+                    frame_img.write_to_file(  # type: ignore
+                        Path(
+                            target,
+                            f"{i}.{args.output_extension}",
+                        ),
+                        Q=args.image_quality,
+                    )
+                    report_progress(
+                        progress_str(n, total, bcell_file.stem, "bcell"),
+                        f"[{i + 1}/{blocks}]",
+                    )
+
+                    if frame_name not in current_set:
+                        current_set.add(frame_name)
+
+        else:
+            n += len(list(directory.glob("**/*.bcell")))
 
         for file in directory.glob("**/*.rgb"):
+            n += 1
+            report_progress(progress_str(n, total, file.stem, "rgb"), "")
+
+            # Image already processed.
             if file.name in bcell_set:
                 continue
 
@@ -159,11 +182,9 @@ def main():
             target.mkdir(parents=True, exist_ok=True)
 
             rgb_image = rgb_parser(file)
-            report_progress(progress_str(n, total, file.stem, "rgb"), "")
 
             # Ignore this file if it cannot be parsed.
             if rgb_image is False:
-                n += 1
                 continue
 
             bsv3_file = Path(file.parent, file.stem + ".bsv3")
@@ -206,7 +227,5 @@ def main():
                             progress_str(n, total, file.stem, "bsv3"),
                             f"[{i + 1 + sum(stateitems[:u])}/{blocks}]",
                         )
-
-            n += 1
 
     print("\n\n--- JOB COMPLETED!!! ---\n\n")

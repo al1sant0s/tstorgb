@@ -6,11 +6,11 @@ from pyvips import Image
 from tstorgb.parsers import rgb_parser
 
 
-def bcell_parser(bcell_file):
+def bcell_parser(bcell_file, **kwargs):
     with open(bcell_file, "rb") as f:
         check = f.read(7).decode("utf8")
         if check == "bcell13":
-            return bcell_13(bcell_file)
+            return bcell_13(bcell_file, disable_shadows=kwargs["disable_shadows"])
         if check == "bcell10":
             return bcell_10(bcell_file)
         else:
@@ -18,7 +18,7 @@ def bcell_parser(bcell_file):
             return ((None, ""), set(), 0, False)
 
 
-def bcell_13(bcell_file):
+def bcell_13(bcell_file, disable_shadows=False):
     with open(bcell_file, "rb") as f:
         f.seek(8)
 
@@ -86,7 +86,7 @@ def bcell_13(bcell_file):
                     f.read(skip)
 
                     # Add shadows.
-                    if frames[i][j] == "SHADOW":
+                    if frames[i][j] == "SHADOW" and not disable_shadows:
                         subcells_img[i].append(shadow_img.copy())  # type: ignore
 
                     # Anything else is not supported.
@@ -130,7 +130,7 @@ def bcell_13(bcell_file):
 
                 # Position shadows correctly according to its determinant signal. [positive -> from left side; negative <- from right side]
                 if np.linalg.det(affine_matrix[i][j, ...]) < 0:
-                    a[i][0, j] = a[i][0, j] - subcell_dim[i][0, j]
+                    a[i][0, j] -= subcell_dim[i][0, j]
 
                     # Distribute the shadow properly if it overlaps out of bounds.
                     dist = a[i][0, 0] - a[i][0, j]
