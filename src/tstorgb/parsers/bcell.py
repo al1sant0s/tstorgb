@@ -9,13 +9,174 @@ from tstorgb.parsers import rgb_parser
 def bcell_parser(bcell_file, **kwargs):
     with open(bcell_file, "rb") as f:
         check = f.read(7).decode("utf8")
-        if check == "bcell13":
-            return bcell_13(bcell_file, disable_shadows=kwargs["disable_shadows"])
         if check == "bcell10":
             return bcell_10(bcell_file)
+        elif check == "bcell11":
+            return bcell_11(bcell_file)
+        elif check == "bcell13":
+            return bcell_13(bcell_file, disable_shadows=kwargs["disable_shadows"])
         else:
             # Unsupported or invalid file.
             return ((None, ""), set(), 0, False)
+
+
+def bcell_10(bcell_file):
+    with open(bcell_file, "rb") as f:
+        f.seek(7)
+
+        # Blocks information.
+        blocks = int.from_bytes(f.read(2), byteorder="little", signed=False)
+
+        subcells_img = [None for _ in range(blocks)]
+        byte_pos = [0 for _ in range(blocks)]
+        a = np.zeros((2, blocks), dtype=int)
+        b = np.zeros((2, blocks), dtype=int)
+        subcell_dim = np.zeros((2, blocks), dtype=int)
+
+        # Read blocks info.
+        for i in range(blocks):
+            # Read 24 bit byte position.
+            byte_value = int.from_bytes(f.read(1), "little", signed=False)
+            byte_pos[i] = (
+                int.from_bytes(f.read(2), "little", signed=False) << 8
+            ) + byte_value
+
+            # Ignore extra byte.
+            f.read(1)
+
+            # I'm not sure what this is, I suspect to be the time to wait before showing the next frame.
+            # So it gets stored but is unused in this code.
+            unknown = np.frombuffer(f.read(4), dtype=np.float32)[0]
+
+            a[..., i] = np.frombuffer(f.read(4), dtype=np.int16, count=2).transpose()
+
+            # Ignore extra byte.
+            f.read(1)
+
+            # Get the subcell image.
+            subcells_img[i] = rgb_parser(bcell_file, byte_seek=byte_pos[i])  # type: ignore
+
+            # Get subcell dimensions.
+            subcell_dim[0, i] = subcells_img[i].width  # type: ignore
+            subcell_dim[1, i] = subcells_img[i].height  # type: ignore
+
+            b[..., i] = a[..., i] + subcell_dim[..., i] + np.array([2, 2])
+
+    c = deepcopy(a)
+    d = deepcopy(b)
+    c.sort()
+    d.sort()
+
+    canvas_dim = np.array(d[..., -1] - c[..., 0], dtype=int)
+
+    # Generate the frames.
+    def generate_frames(
+        subcells_img,
+        blocks,
+        a,
+        c,
+        canvas_dim,
+    ):
+        for i in range(blocks):
+            frame_img = Image.new_from_array(
+                np.zeros((canvas_dim[1], canvas_dim[0], 4)),
+                interpretation="srgb",
+            )
+
+            yield (
+                frame_img.composite(  # type: ignore
+                    subcells_img[i],
+                    mode="over",
+                    x=(
+                        a[0, i] - c[0, 0] + 1
+                    ),  # Adding one is necessary to centralize the sprite.
+                    y=(
+                        a[1, i] - c[1, 0] + 1
+                    ),  # Adding one is necessary to centralize the sprite.
+                ),
+                "",
+            )
+
+    frame_iterator = generate_frames(subcells_img, blocks, a, c, canvas_dim)
+
+    return (frame_iterator, set(), blocks, True)
+
+
+def bcell_11(bcell_file):
+    with open(bcell_file, "rb") as f:
+        f.seek(8)
+
+        # Blocks information.
+        blocks = int.from_bytes(f.read(2), byteorder="little", signed=False)
+
+        frames = ["" for _ in range(blocks)]
+        subcells_img = [None for _ in range(blocks)]
+        a = np.zeros((2, blocks), dtype=int)
+        b = np.zeros((2, blocks), dtype=int)
+        subcell_dim = np.zeros((2, blocks), dtype=int)
+
+        # Read blocks info.
+        for i in range(blocks):
+            # Ignore extra byte.
+            skip = int.from_bytes(f.read(1))
+            frames[i] = f.read(skip).decode("utf8")[0:-1].lower()
+
+            # I'm not sure what this is, I suspect to be the time to wait before showing the next frame.
+            # So it gets stored but is unused in this code.
+            unknown = np.frombuffer(f.read(4), dtype=np.float32)[0]
+
+            a[..., i] = np.frombuffer(f.read(4), dtype=np.int16, count=2).transpose()
+
+            # Ignore extra byte.
+            f.read(1)
+
+            # Get the subcell image.
+            subcells_img[i] = rgb_parser(frames[i])  # type: ignore
+
+            # Get subcell dimensions.
+            subcell_dim[0, i] = subcells_img[i].width  # type: ignore
+            subcell_dim[1, i] = subcells_img[i].height  # type: ignore
+
+            b[..., i] = a[..., i] + subcell_dim[..., i] + np.array([2, 2])
+
+    c = deepcopy(a)
+    d = deepcopy(b)
+    c.sort()
+    d.sort()
+
+    canvas_dim = np.array(d[..., -1] - c[..., 0], dtype=int)
+
+    # Generate the frames.
+    def generate_frames(
+        subcells_img,
+        blocks,
+        a,
+        c,
+        canvas_dim,
+    ):
+        for i in range(blocks):
+            frame_img = Image.new_from_array(
+                np.zeros((canvas_dim[1], canvas_dim[0], 4)),
+                interpretation="srgb",
+            )
+
+            yield (
+                frame_img.composite(  # type: ignore
+                    subcells_img[i],
+                    mode="over",
+                    x=(
+                        a[0, i] - c[0, 0] + 1
+                    ),  # Adding one is necessary to centralize the sprite.
+                    y=(
+                        a[1, i] - c[1, 0] + 1
+                    ),  # Adding one is necessary to centralize the sprite.
+                ),
+                "",
+            )
+
+    frame_iterator = generate_frames(subcells_img, blocks, a, c, canvas_dim)
+
+    return (frame_iterator, set(), blocks, True)
 
 
 def bcell_13(bcell_file, disable_shadows=False):
@@ -214,85 +375,3 @@ def bcell_13(bcell_file, disable_shadows=False):
         )
 
         return (frame_iterator, bcell_set, blocks, True)
-
-
-def bcell_10(bcell_file):
-    with open(bcell_file, "rb") as f:
-        f.seek(7)
-
-        # Blocks information.
-        blocks = int.from_bytes(f.read(2), byteorder="little", signed=False)
-
-        subcells_img = [None for _ in range(blocks)]
-        byte_pos = [0 for _ in range(blocks)]
-        a = np.zeros((2, blocks), dtype=int)
-        b = np.zeros((2, blocks), dtype=int)
-        subcell_dim = np.zeros((2, blocks), dtype=int)
-
-        # Read blocks info.
-        for i in range(blocks):
-            # Read 24 bit byte position.
-            byte_value = int.from_bytes(f.read(1), "little", signed=False)
-            byte_pos[i] = (
-                int.from_bytes(f.read(2), "little", signed=False) << 8
-            ) + byte_value
-
-            # Ignore extra byte.
-            f.read(1)
-
-            # I'm not sure what this is, I suspect to be the time to wait before showing the next frame.
-            # So it gets stored but is unused in this code.
-            unknown = np.frombuffer(f.read(4), dtype=np.float32)[0]
-
-            a[..., i] = np.frombuffer(f.read(4), dtype=np.int16, count=2).transpose()
-
-            # Ignore extra byte.
-            f.read(1)
-
-            # Get the subcell image.
-            subcells_img[i] = rgb_parser(bcell_file, byte_seek=byte_pos[i])  # type: ignore
-
-            # Get subcell dimensions.
-            subcell_dim[0, i] = subcells_img[i].width  # type: ignore
-            subcell_dim[1, i] = subcells_img[i].height  # type: ignore
-
-            b[..., i] = a[..., i] + subcell_dim[..., i] + np.array([2, 2])
-
-    c = deepcopy(a)
-    d = deepcopy(b)
-    c.sort()
-    d.sort()
-
-    canvas_dim = np.array(d[..., -1] - c[..., 0], dtype=int)
-
-    # Generate the frames.
-    def generate_frames(
-        subcells_img,
-        blocks,
-        a,
-        c,
-        canvas_dim,
-    ):
-        for i in range(blocks):
-            frame_img = Image.new_from_array(
-                np.zeros((canvas_dim[1], canvas_dim[0], 4)),
-                interpretation="srgb",
-            )
-
-            yield (
-                frame_img.composite(  # type: ignore
-                    subcells_img[i],
-                    mode="over",
-                    x=(
-                        a[0, i] - c[0, 0] + 1
-                    ),  # Adding one is necessary to centralize the sprite.
-                    y=(
-                        a[1, i] - c[1, 0] + 1
-                    ),  # Adding one is necessary to centralize the sprite.
-                ),
-                "",
-            )
-
-    frame_iterator = generate_frames(subcells_img, blocks, a, c, canvas_dim)
-
-    return (frame_iterator, set(), blocks, True)
