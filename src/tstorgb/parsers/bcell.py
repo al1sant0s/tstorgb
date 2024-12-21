@@ -2,7 +2,7 @@ import numpy as np
 from pathlib import Path
 from copy import deepcopy
 from importlib import resources
-from pyvips import Image
+from pyvips import Image, Interpolate
 from tstorgb.parsers import rgb_parser
 
 
@@ -58,10 +58,12 @@ def bcell_13(bcell_file, disable_shadows=False):
             f.seek(start)
 
             # Shape the arrays.
-            a[i] = np.zeros((2, subcells[i]), dtype=int)
-            b[i] = np.zeros((2, subcells[i]), dtype=int)
-            subcell_dim[i] = np.zeros((2, subcells[i]), dtype=int)
-            affine_matrix[i] = np.array([np.identity(2)] * subcells[i])
+            a[i] = np.zeros((2, subcells[i]), dtype=np.float32)
+            b[i] = np.zeros((2, subcells[i]), dtype=np.float32)
+            subcell_dim[i] = np.zeros((2, subcells[i]), dtype=np.float32)
+            affine_matrix[i] = np.array(
+                [np.identity(2)] * subcells[i], dtype=np.float32
+            )
             alpha[i] = np.ones(subcells[i])
 
             # I'm not sure what this is, I suspect to be the time to wait before showing the next frame.
@@ -97,6 +99,7 @@ def bcell_13(bcell_file, disable_shadows=False):
                         frames[i][j] = "null"
                         continue
 
+                    # Get top left corner.
                     a[i][..., j] = np.frombuffer(
                         f.read(8), dtype=np.float32, count=2
                     ).transpose()
@@ -128,14 +131,16 @@ def bcell_13(bcell_file, disable_shadows=False):
                 # Get subcell dimensions.
                 subcell_dim[i][..., j] = edges[..., -1] - edges[..., 0]
 
-                # Position shadows correctly according to its determinant signal. [positive -> from left side; negative <- from right side]
-                if np.linalg.det(affine_matrix[i][j, ...]) < 0:
-                    a[i][0, j] -= subcell_dim[i][0, j]
+                # Adjust coordinates accordingly to the affine matrix.
+                if np.linalg.det(affine_matrix[i][j, ...]) > 0:
+                    a[i][0, j] = np.round(a[i][0, j])
+                    a[i][1, j] = np.floor(a[i][1, j])
+                else:
+                    a[i][0, j] = np.floor(a[i][0, j])
+                    a[i][1, j] = np.floor(a[i][1, j])
 
-                    # Distribute the shadow properly if it overlaps out of bounds.
-                    dist = a[i][0, 0] - a[i][0, j]
-                    if dist > 0:
-                        a[i][0, j] += (dist / 2) + 4
+                    # Position shadows correctly according to its determinant signal. [positive -> from left side; negative <- from right side]
+                    a[i][0, j] -= subcell_dim[i][0, j]
 
                 # Get bottom right corner.
                 b[i][..., j] = a[i][..., j] + subcell_dim[i][..., j] + np.array([2, 2])
@@ -181,6 +186,7 @@ def bcell_13(bcell_file, disable_shadows=False):
                     subcells_img[i][j] *= [1, 1, 1, alpha[i][j]]
                     subcells_img[i][j] = subcells_img[i][j].affine(
                         affine_matrix[i][j, ...].transpose().flatten().tolist(),
+                        interpolate=Interpolate.new("bicubic"),
                         extend="background",
                     )
 

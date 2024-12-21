@@ -1,6 +1,6 @@
 import numpy as np
 from copy import deepcopy
-from pyvips import Image
+from pyvips import Image, Interpolate
 
 
 def bsv3_parser(bsv3_file, rgb_img):
@@ -29,7 +29,9 @@ def bsv3_259(bsv3_file, rgb_img):
             f.seek(f.tell() + skip)
 
             # Read x, y, width and height.
-            cell[i] = np.frombuffer(f.read(8), dtype=np.uint16)
+            cell[i] = np.frombuffer(f.read(8), dtype=np.uint16) + np.array(
+                [-1, -1, +1, +1]
+            )
 
         # Blocks information.
         blocks = int.from_bytes(f.read(2), byteorder="little", signed=False)
@@ -39,6 +41,7 @@ def bsv3_259(bsv3_file, rgb_img):
         index = [np.array([]) for _ in range(blocks)]
         a = deepcopy(index)
         b = deepcopy(index)
+        subcell_dim = deepcopy(index)
         affine_matrix = deepcopy(index)
         alpha = deepcopy(index)
 
@@ -51,9 +54,12 @@ def bsv3_259(bsv3_file, rgb_img):
 
             # Info about each subcell.
             index[i] = np.zeros(subcells[i], dtype=int)
-            a[i] = np.zeros((2, subcells[i]), dtype=int)
-            b[i] = np.zeros((2, subcells[i]), dtype=int)
-            affine_matrix[i] = np.array([np.identity(2)] * subcells[i])
+            a[i] = np.zeros((2, subcells[i]), dtype=np.float32)
+            b[i] = np.zeros((2, subcells[i]), dtype=np.float32)
+            subcell_dim[i] = np.zeros((2, subcells[i]), dtype=np.float32)
+            affine_matrix[i] = np.array(
+                [np.identity(2)] * subcells[i], dtype=np.float32
+            )
             alpha[i] = np.zeros(subcells[i], dtype=int)
 
             # Skip empty subcells
@@ -79,6 +85,14 @@ def bsv3_259(bsv3_file, rgb_img):
                     count=4,
                 ).reshape(2, 2)
 
+                # Adjust coordinates accordingly to the affine matrix.
+                if np.linalg.det(affine_matrix[i][j, ...]) > 0:
+                    a[i][0, j] = np.round(a[i][0, j])
+                    a[i][1, j] = np.floor(a[i][1, j])
+                else:
+                    a[i][0, j] = np.floor(a[i][0, j])
+                    a[i][1, j] = np.floor(a[i][1, j])
+
                 # Get edges in counterclockwise direction.
                 edges = (
                     cell[index[i][j]][2:4].reshape(2, 1)
@@ -90,10 +104,11 @@ def bsv3_259(bsv3_file, rgb_img):
                 edges = np.matmul(affine_matrix[i][j, ...], edges)
                 edges.sort()
 
+                # Get subcell dimensions.
+                subcell_dim[i][..., j] = edges[..., -1] - edges[..., 0]
+
                 # Get bottom right corner.
-                b[i][..., j] = (
-                    a[i][..., j] + edges[..., -1] - edges[..., 0] + np.array([2, 2])
-                )
+                b[i][..., j] = a[i][..., j] + subcell_dim[i][..., j]
 
                 # Get alpha.
                 if is_alpha == 1:
@@ -159,18 +174,15 @@ def bsv3_259(bsv3_file, rgb_img):
                     subcell_img[j] *= [1, 1, 1, alpha[i][j] / 255]  # type: ignore
                     subcell_img[j] = subcell_img[j].affine(  # type: ignore
                         affine_matrix[i][j, ...].transpose().flatten().tolist(),
+                        interpolate=Interpolate.new("bicubic"),
                         extend="background",
                     )
 
                 yield frame_img.composite(  # type: ignore
                     list(reversed(subcell_img)),
                     mode="over",
-                    x=list(
-                        reversed(a[i][0, ...] - c[0, 0] + 1)
-                    ),  # Adding one is necessary to centralize the sprite.
-                    y=list(
-                        reversed(a[i][1, ...] - c[1, 0] + 1)
-                    ),  # Adding one is necessary to centralize the sprite.
+                    x=list(reversed(a[i][0, ...] - c[0, 0])),
+                    y=list(reversed(a[i][1, ...] - c[1, 0])),
                 )
 
         frame_iterator = generate_frames(
@@ -203,7 +215,9 @@ def bsv3_771(bsv3_file, rgb_img):
             f.seek(f.tell() + skip)
 
             # Read x, y, width and height.
-            cell[i] = np.frombuffer(f.read(8), dtype=np.uint16)
+            cell[i] = np.frombuffer(f.read(8), dtype=np.uint16) + np.array(
+                [-1, -1, +1, +1]
+            )
 
         # Blocks information.
         blocks = int.from_bytes(f.read(2), byteorder="little", signed=False)
@@ -213,9 +227,10 @@ def bsv3_771(bsv3_file, rgb_img):
 
         # Subcell data.
         index = np.zeros(subcells, dtype=int)
-        a = np.zeros((2, subcells), dtype=int)
-        b = np.zeros((2, subcells), dtype=int)
-        affine_matrix = np.array([np.identity(2)] * subcells)
+        a = np.zeros((2, subcells), dtype=np.float32)
+        b = np.zeros((2, subcells), dtype=np.float32)
+        subcell_dim = np.zeros((2, subcells), dtype=np.float32)
+        affine_matrix = np.array([np.identity(2)] * subcells, dtype=np.float32)
         alpha = np.zeros(subcells, dtype=int)
 
         for j in range(subcells):
@@ -233,6 +248,14 @@ def bsv3_771(bsv3_file, rgb_img):
                 count=4,
             ).reshape(2, 2)
 
+            # Adjust coordinates accordingly to the affine matrix.
+            if np.linalg.det(affine_matrix[j, ...]) > 0:
+                a[0, j] = np.round(a[0, j])
+                a[1, j] = np.floor(a[1, j])
+            else:
+                a[0, j] = np.floor(a[0, j])
+                a[1, j] = np.floor(a[1, j])
+
             # Get edges in counterclockwise direction.
             edges = (
                 cell[index[j]][2:4].reshape(2, 1)
@@ -244,8 +267,11 @@ def bsv3_771(bsv3_file, rgb_img):
             edges = np.matmul(affine_matrix[j, ...], edges)
             edges.sort()
 
+            # Get subcell dimensions.
+            subcell_dim[..., j] = edges[..., -1] - edges[..., 0]
+
             # Get bottom right corner.
-            b[..., j] = a[..., j] + edges[..., -1] - edges[..., 0] + np.array([2, 2])
+            b[..., j] = a[..., j] + subcell_dim[..., j]
 
             # Get alpha.
             if is_alpha == 1:
@@ -322,18 +348,15 @@ def bsv3_771(bsv3_file, rgb_img):
                     subcell_img[k] *= [1, 1, 1, alpha[j] / 255]  # type: ignore
                     subcell_img[k] = subcell_img[k].affine(  # type: ignore
                         affine_matrix[j, ...].transpose().flatten().tolist(),
+                        interpolate=Interpolate.new("bicubic"),
                         extend="background",
                     )
 
                 yield frame_img.composite(  # type: ignore
                     list(reversed(subcell_img)),
                     mode="over",
-                    x=list(
-                        reversed(a[0, frames_items[i]] - c[0, 0] + 1)
-                    ),  # Adding one is necessary to centralize the sprite.
-                    y=list(
-                        reversed(a[1, frames_items[i]] - c[1, 0] + 1)
-                    ),  # Adding one is necessary to centralize the sprite.
+                    x=list(reversed(a[0, frames_items[i]] - c[0, 0])),
+                    y=list(reversed(a[1, frames_items[i]] - c[1, 0])),
                 )
 
         frame_iterator = generate_frames(
