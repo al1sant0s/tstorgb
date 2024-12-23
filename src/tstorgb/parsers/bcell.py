@@ -90,12 +90,8 @@ def bcell_10(bcell_file):
             yield frame_img.composite(  # type: ignore
                 subcells_img[i],
                 mode="over",
-                x=(
-                    a[0, i] - c[0, 0] + 1
-                ),  # Adding one is necessary to centralize the sprite.
-                y=(
-                    a[1, i] - c[1, 0] + 1
-                ),  # Adding one is necessary to centralize the sprite.
+                x=(a[0, i] - c[0, 0]),
+                y=(a[1, i] - c[1, 0]),
             )
 
     frame_iterator = generate_frames(subcells_img, blocks, a, c, canvas_dim)
@@ -173,12 +169,8 @@ def bcell_11(bcell_file):
             yield frame_img.composite(  # type: ignore
                 subcells_img[i],
                 mode="over",
-                x=(
-                    a[0, i] - c[0, 0] + 1
-                ),  # Adding one is necessary to centralize the sprite.
-                y=(
-                    a[1, i] - c[1, 0] + 1
-                ),  # Adding one is necessary to centralize the sprite.
+                x=(a[0, i] - c[0, 0]),
+                y=(a[1, i] - c[1, 0]),
             )
 
     frame_iterator = generate_frames(subcells_img, blocks, a, c, canvas_dim)
@@ -371,12 +363,8 @@ def bcell_13(bcell_file, disable_shadows=False):
                 yield frame_img.composite(  # type: ignore
                     list(reversed(subcells_img[i])),
                     mode="over",
-                    x=list(
-                        reversed(a[i][0, ...] - c[0, 0] + 1)
-                    ),  # Adding one is necessary to centralize the sprite.
-                    y=list(
-                        reversed(a[i][1, ...] - c[1, 0] + 1)
-                    ),  # Adding one is necessary to centralize the sprite.
+                    x=list(reversed(a[i][0, ...] - c[0, 0])),
+                    y=list(reversed(a[i][1, ...] - c[1, 0])),
                 )
 
         frame_iterator = generate_frames(
