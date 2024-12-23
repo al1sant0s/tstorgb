@@ -3,7 +3,7 @@ from pathlib import Path
 from copy import deepcopy
 from importlib import resources
 from pyvips import Image, Interpolate
-from tstorgb.parsers import rgb_parser
+from tstorgb.parsers import rgb, rgb_parser
 
 
 def bcell_parser(bcell_file, **kwargs):
@@ -17,7 +17,7 @@ def bcell_parser(bcell_file, **kwargs):
             return bcell_13(bcell_file, disable_shadows=kwargs["disable_shadows"])
         else:
             # Unsupported or invalid file.
-            return ((None, ""), set(), 0, False)
+            return (None, set(), 0, False)
 
 
 def bcell_10(bcell_file):
@@ -54,7 +54,11 @@ def bcell_10(bcell_file):
             f.read(1)
 
             # Get the subcell image.
-            subcells_img[i] = rgb_parser(bcell_file, byte_seek=byte_pos[i])  # type: ignore
+            rgb_img = rgb_parser(bcell_file, byte_seek=byte_pos[i])
+            if rgb_img is False:
+                continue
+            else:
+                subcells_img[i] = rgb_img  # type: ignore
 
             # Get subcell dimensions.
             subcell_dim[0, i] = subcells_img[i].width  # type: ignore
@@ -83,18 +87,15 @@ def bcell_10(bcell_file):
                 interpretation="srgb",
             )
 
-            yield (
-                frame_img.composite(  # type: ignore
-                    subcells_img[i],
-                    mode="over",
-                    x=(
-                        a[0, i] - c[0, 0] + 1
-                    ),  # Adding one is necessary to centralize the sprite.
-                    y=(
-                        a[1, i] - c[1, 0] + 1
-                    ),  # Adding one is necessary to centralize the sprite.
-                ),
-                "",
+            yield frame_img.composite(  # type: ignore
+                subcells_img[i],
+                mode="over",
+                x=(
+                    a[0, i] - c[0, 0] + 1
+                ),  # Adding one is necessary to centralize the sprite.
+                y=(
+                    a[1, i] - c[1, 0] + 1
+                ),  # Adding one is necessary to centralize the sprite.
             )
 
     frame_iterator = generate_frames(subcells_img, blocks, a, c, canvas_dim)
@@ -105,6 +106,9 @@ def bcell_10(bcell_file):
 def bcell_11(bcell_file):
     with open(bcell_file, "rb") as f:
         f.seek(8)
+
+        # Set of images used.
+        bcell_set = set()
 
         # Blocks information.
         blocks = int.from_bytes(f.read(2), byteorder="little", signed=False)
@@ -131,7 +135,13 @@ def bcell_11(bcell_file):
             f.read(1)
 
             # Get the subcell image.
-            subcells_img[i] = rgb_parser(frames[i])  # type: ignore
+            rgb_img_path = Path(bcell_file.parent, frames[i])
+            rgb_img = rgb_parser(rgb_img_path)
+            if rgb_img is False:
+                continue
+            else:
+                bcell_set.add(frames[i])
+                subcells_img[i] = rgb_img  # type: ignore
 
             # Get subcell dimensions.
             subcell_dim[0, i] = subcells_img[i].width  # type: ignore
@@ -160,23 +170,20 @@ def bcell_11(bcell_file):
                 interpretation="srgb",
             )
 
-            yield (
-                frame_img.composite(  # type: ignore
-                    subcells_img[i],
-                    mode="over",
-                    x=(
-                        a[0, i] - c[0, 0] + 1
-                    ),  # Adding one is necessary to centralize the sprite.
-                    y=(
-                        a[1, i] - c[1, 0] + 1
-                    ),  # Adding one is necessary to centralize the sprite.
-                ),
-                "",
+            yield frame_img.composite(  # type: ignore
+                subcells_img[i],
+                mode="over",
+                x=(
+                    a[0, i] - c[0, 0] + 1
+                ),  # Adding one is necessary to centralize the sprite.
+                y=(
+                    a[1, i] - c[1, 0] + 1
+                ),  # Adding one is necessary to centralize the sprite.
             )
 
     frame_iterator = generate_frames(subcells_img, blocks, a, c, canvas_dim)
 
-    return (frame_iterator, set(), blocks, True)
+    return (frame_iterator, bcell_set, blocks, True)
 
 
 def bcell_13(bcell_file, disable_shadows=False):
@@ -231,16 +238,22 @@ def bcell_13(bcell_file, disable_shadows=False):
             # So it gets stored but is unused in this code.
             unknown = np.frombuffer(f.read(4), dtype=np.float32)[0]
 
-            # Get first subcell data.
-            a[i][..., 0] = np.frombuffer(f.read(4), dtype=np.int16, count=2).transpose()
-            f.read(2)  # It's already been read.
-
             # Get the other subcells data.
             for j in range(subcells[i]):
                 if j == 0:
-                    subcells_img[i].append(
-                        rgb_parser(Path(bcell_file.parent, frames[i][j]))
-                    )
+                    # Get first subcell data.
+                    a[i][..., 0] = np.frombuffer(
+                        f.read(4), dtype=np.int16, count=2
+                    ).transpose()
+                    f.read(2)  # It's already been read.
+
+                    # Get the subcell image.
+                    rgb_img = rgb_parser(Path(bcell_file.parent, frames[i][j]))
+                    if rgb_img is False:
+                        subcells_img[i].append(null_img.copy())  # type: ignore
+                    else:
+                        subcells_img[i].append(rgb_img)
+
                 else:
                     skip = int.from_bytes(f.read(1))
                     frames[i].append(f.read(skip).decode("utf8")[0:-1])
@@ -268,11 +281,15 @@ def bcell_13(bcell_file, disable_shadows=False):
                     # Get coefficients for the affine matrix.
                     # [sx rx]
                     # [ry sy]
-                    affine_matrix[i][j, ...] = np.frombuffer(
-                        f.read(16),
-                        dtype=np.float32,
-                        count=4,
-                    ).reshape(2, 2)
+                    affine_matrix[i][j, ...] = (
+                        np.frombuffer(
+                            f.read(16),
+                            dtype=np.float32,
+                            count=4,
+                        )
+                        .reshape(2, 2)
+                        .transpose()
+                    )
 
                     alpha[i][j] = np.frombuffer(f.read(4), dtype=np.float32)
 
@@ -346,23 +363,20 @@ def bcell_13(bcell_file, disable_shadows=False):
                 for j in range(subcells[i]):
                     subcells_img[i][j] *= [1, 1, 1, alpha[i][j]]
                     subcells_img[i][j] = subcells_img[i][j].affine(
-                        affine_matrix[i][j, ...].transpose().flatten().tolist(),
+                        affine_matrix[i][j, ...].flatten().tolist(),
                         interpolate=Interpolate.new("bicubic"),
                         extend="background",
                     )
 
-                yield (
-                    frame_img.composite(  # type: ignore
-                        list(reversed(subcells_img[i])),
-                        mode="over",
-                        x=list(
-                            reversed(a[i][0, ...] - c[0, 0] + 1)
-                        ),  # Adding one is necessary to centralize the sprite.
-                        y=list(
-                            reversed(a[i][1, ...] - c[1, 0] + 1)
-                        ),  # Adding one is necessary to centralize the sprite.
-                    ),
-                    frames[i][0],
+                yield frame_img.composite(  # type: ignore
+                    list(reversed(subcells_img[i])),
+                    mode="over",
+                    x=list(
+                        reversed(a[i][0, ...] - c[0, 0] + 1)
+                    ),  # Adding one is necessary to centralize the sprite.
+                    y=list(
+                        reversed(a[i][1, ...] - c[1, 0] + 1)
+                    ),  # Adding one is necessary to centralize the sprite.
                 )
 
         frame_iterator = generate_frames(

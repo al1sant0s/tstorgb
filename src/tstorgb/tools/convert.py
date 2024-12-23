@@ -86,6 +86,9 @@ def main():
     # keep track of bcell files.
     bcell_set = set("")
 
+    # Keep track of bsv3 files.
+    bsv3_set = set("")
+
     print("\n\n--- CONVERTING RGB FILES ---\n\n")
 
     print(
@@ -103,6 +106,7 @@ def main():
     total = sum(
         [len(list(Path(directory).glob("**/*.rgb"))) for directory in directories]
         + [len(list(Path(directory).glob("**/*.bcell"))) for directory in directories]
+        + [len(list(Path(directory).glob("**/*.bsv3"))) for directory in directories]
     )
 
     if total == 0:
@@ -117,6 +121,7 @@ def main():
     target.mkdir(exist_ok=True)
 
     for directory in directories:
+        # Process bcell files.
         if args.disable_bcell is False:
             for bcell_file in directory.glob("**/*.bcell"):
                 frames, new_set, blocks, success = bcell_parser(
@@ -141,9 +146,8 @@ def main():
                 target.mkdir(parents=True, exist_ok=True)
 
                 # How the frames will be saved.
-                current_set = set()
                 for i in range(blocks):
-                    frame_img, frame_name = next(frames)  # type: ignore
+                    frame_img = next(frames)  # type: ignore
                     frame_img.write_to_file(  # type: ignore
                         Path(
                             target,
@@ -156,60 +160,34 @@ def main():
                         f"[{i + 1}/{blocks}]",
                     )
 
-                    if frame_name not in current_set:
-                        current_set.add(frame_name)
-
         else:
             n += len(list(directory.glob("**/*.bcell")))
 
-        for file in directory.glob("**/*.rgb"):
-            n += 1
-            report_progress(progress_str(n, total, file.stem, "rgb"), "")
-
-            # Image already processed.
-            if file.name in bcell_set:
-                continue
-
-            entity = file.stem.split("_", maxsplit=1)
-
-            if len(entity) == 2:
-                target = Path(
-                    args.output_dir, entity[0], entity[1].split("_image", maxsplit=1)[0]
-                )
-            else:
-                target = Path(args.output_dir, entity[0], "_default")
-
-            target.mkdir(parents=True, exist_ok=True)
-
-            rgb_image = rgb_parser(file)
-
-            # Ignore this file if it cannot be parsed.
-            if rgb_image is False:
-                continue
-
-            bsv3_file = Path(file.parent, file.stem + ".bsv3")
-
-            # Save image or process animation.
-            if args.disable_bsv3 or bsv3_file.exists() is False:
-                rgb_image.write_to_file(  # type: ignore
-                    Path(target, f"{file.stem}.{args.output_extension}"),
-                    Q=args.image_quality,
+        # Process bsv3 files.
+        if args.disable_bsv3 is False:
+            for bsv3_file in directory.glob("**/*.bsv3"):
+                frames, statenames, stateitems, new_set, blocks, success = bsv3_parser(
+                    bsv3_file
                 )
 
-            else:
-                frames, statenames, stateitems, blocks, success = bsv3_parser(
-                    bsv3_file,
-                    rgb_image,
-                )
+                n += 1
 
                 # Unsupported or invalid bsv3 file.
                 if success is False:
-                    print("Unknown bsv3 signature. Skipping this file.")
-                    rgb_image.write_to_file(  # type: ignore
-                        Path(target, f"{file.stem}.{args.output_extension}"),
-                        Q=args.image_quality,
+                    print(
+                        "Unknown bsv3 signature or invalid rgb file. Skipping this file."
                     )
                     continue
+
+                bsv3_set = bsv3_set.union(new_set)
+
+                entity = bsv3_file.stem.split("_", maxsplit=1)
+                if len(entity) == 2:
+                    target = Path(args.output_dir, entity[0], entity[1])
+                else:
+                    target = Path(args.output_dir, entity[0], "_default")
+
+                target.mkdir(parents=True, exist_ok=True)
 
                 # How the frames will be saved.
                 for s, t, u in zip(statenames, stateitems, range(len(stateitems))):
@@ -224,8 +202,42 @@ def main():
                             Q=args.image_quality,
                         )
                         report_progress(
-                            progress_str(n, total, file.stem, "bsv3"),
+                            progress_str(n, total, bsv3_file.stem, "bsv3"),
                             f"[{i + 1 + sum(stateitems[:u])}/{blocks}]",
                         )
+
+        else:
+            n += len(list(directory.glob("**/*.bsv3")))
+
+        # Process the remaining rgb files.
+        for rgb_file in directory.glob("**/*.rgb"):
+            n += 1
+            report_progress(progress_str(n, total, rgb_file.stem, "rgb"), "")
+
+            # Image already processed.
+            if rgb_file.name in bcell_set or rgb_file.name in bsv3_set:
+                continue
+
+            entity = rgb_file.stem.split("_", maxsplit=1)
+
+            if len(entity) == 2:
+                target = Path(
+                    args.output_dir, entity[0], entity[1].split("_image", maxsplit=1)[0]
+                )
+            else:
+                target = Path(args.output_dir, entity[0], "_default")
+
+            target.mkdir(parents=True, exist_ok=True)
+
+            rgb_image = rgb_parser(rgb_file)
+
+            # Ignore this rgb_file if it cannot be parsed.
+            if rgb_image is False:
+                continue
+
+            rgb_image.write_to_file(  # type: ignore
+                Path(target, f"{rgb_file.stem}.{args.output_extension}"),
+                Q=args.image_quality,
+            )
 
     print("\n\n--- JOB COMPLETED!!! ---\n\n")
