@@ -132,7 +132,11 @@ def main():
 
                 # Unsupported or invalid bcell file.
                 if success is False:
-                    print("Unknown bcell signature. Skipping this file.")
+                    # Clear line.
+                    print(150 * " ", end="\r")
+                    print(
+                        f"Unknown bcell signature. Skipping this file -> {bcell_file.name}!"
+                    )
                     continue
 
                 bcell_set = bcell_set.union(new_set)
@@ -174,8 +178,10 @@ def main():
 
                 # Unsupported or invalid bsv3 file.
                 if success is False:
+                    # Clear line.
+                    print(150 * " ", end="\r")
                     print(
-                        "Unknown bsv3 signature or invalid rgb file. Skipping this file."
+                        f"Unknown bsv3 signature or invalid rgb file. Skipping this file -> {bsv3_file.name}!"
                     )
                     continue
 
@@ -233,6 +239,9 @@ def main():
 
             # Ignore this rgb_file if it cannot be parsed.
             if rgb_image is False:
+                # Clear line.
+                print(150 * " ", end="\r")
+                print(f"Invalid rgb file. Skipping this file -> {rgb_file.name}!")
                 continue
 
             rgb_image.write_to_file(  # type: ignore
