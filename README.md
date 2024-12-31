@@ -77,5 +77,14 @@ If you want to search for the rgb files recursively in every subdirectory bellow
 including the 'rgb_folder' and 'another_rgb_folder' subdirectories.
 
 ```
-tstorgb --search_zip path/to/Downloads/rgb_files path/to/Images path/to/sprites  
+tstorgb --search_zip path/to/Downloads/rgb_files path/to/Images path/to/sprites
+```
+
+## Animated images
+
+The --sequential and --sequential_delay arguments make it possible to produce animated images using specific image formats (e.g. webp). To produce animated images
+with a refresh rate of 30 fps, for example:
+
+```
+tstorgb --search_zip --sequential --sequential_delay 33 --output_extension webp path/to/Images path/to/sprites
 ```

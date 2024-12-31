@@ -17,7 +17,7 @@ def bcell_parser(bcell_file, **kwargs):
             return bcell_13(bcell_file, disable_shadows=kwargs["disable_shadows"])
         else:
             # Unsupported or invalid file.
-            return (None, set(), 0, False)
+            return (None, 0, set(), False)
 
 
 def bcell_10(bcell_file):
@@ -96,7 +96,7 @@ def bcell_10(bcell_file):
 
     frame_iterator = generate_frames(subcells_img, blocks, a, c, canvas_dim)
 
-    return (frame_iterator, set(), blocks, True)
+    return (frame_iterator, blocks, set(), True)
 
 
 def bcell_11(bcell_file):
@@ -175,7 +175,7 @@ def bcell_11(bcell_file):
 
     frame_iterator = generate_frames(subcells_img, blocks, a, c, canvas_dim)
 
-    return (frame_iterator, bcell_set, blocks, True)
+    return (frame_iterator, blocks, bcell_set, True)
 
 
 def bcell_13(bcell_file, disable_shadows=False):
@@ -376,4 +376,4 @@ def bcell_13(bcell_file, disable_shadows=False):
             canvas_dim,
         )
 
-        return (frame_iterator, bcell_set, blocks, True)
+        return (frame_iterator, blocks, bcell_set, True)

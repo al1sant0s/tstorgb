@@ -1,91 +1,121 @@
 import numpy as np
-from copy import deepcopy
 from pathlib import Path
 from pyvips import Image, Interpolate
-
 from tstorgb.parsers.rgb import rgb_parser
+from tstorgb.parsers.addons.bsv3_addon import crop_cells, get_states, frame_iterator
 
 
 def bsv3_parser(bsv3_file):
     with open(bsv3_file, "rb") as f:
+        bsv3_set = set()
+
         check = int.from_bytes(f.read(2), byteorder="little", signed=False)
-        if check == 259:
-            return bsv3_259(bsv3_file)
-        elif check == 515:
-            return bsv3_515(bsv3_file)
-        elif check == 771:
-            return bsv3_771(bsv3_file)
+
+        if check in {259, 515}:
+            # Read cell data.
+            cellnumber = int.from_bytes(f.read(2), byteorder="little", signed=False)
+            is_alpha = int.from_bytes(f.read(1), byteorder="little", signed=False)
+
+            # Get rgb image.
+            rgb_img_path = Path(bsv3_file.parent, bsv3_file.stem + ".rgb")
+            if check == 515:
+                skip = int.from_bytes(f.read(1), byteorder="little", signed=False)
+                rgb_img_path = Path(
+                    bsv3_file.parent, f.read(skip).decode("utf8")[0:-1].lower()
+                )
+
+            rgb_img = rgb_parser(rgb_img_path)
+            bsv3_set.add(rgb_img_path.name)
+
+            if rgb_img is False:
+                return (None, list(), list(), set(), False)
+
+            # Get cells.
+            cells_imgs, bytepos = crop_cells(
+                bsv3_file, bytepos=f.tell(), rgb_img=rgb_img, cellnumber=cellnumber
+            )
+
+            # Get frames.
+            frames, statenames, stateitems = bsv3a(
+                bsv3_file, bytepos, cells_imgs, is_alpha
+            )
+
+            return (frames, statenames, stateitems, bsv3_set, True)
+
+        elif check in {771}:
+            # Read cell data.
+            unknown = np.frombuffer(f.read(4), dtype=np.float32)
+            cellnumber = int.from_bytes(f.read(2), byteorder="little", signed=False)
+            is_alpha = int.from_bytes(f.read(1), byteorder="little", signed=False)
+
+            # Get rgb image.
+            rgb_img_path = Path(bsv3_file.parent, bsv3_file.stem + ".rgb")
+            rgb_img = rgb_parser(rgb_img_path)
+            bsv3_set.add(rgb_img_path.name)
+
+            if rgb_img is False:
+                return (None, list(), list(), set(), False)
+
+            # Get cells.
+            cells_imgs, bytepos = crop_cells(
+                bsv3_file,
+                bytepos=f.tell(),
+                rgb_img=rgb_img,
+                cellnumber=cellnumber,
+            )
+
+            # Get frames.
+            frames, statenames, stateitems = bsv3b(
+                bsv3_file, bytepos, cells_imgs, is_alpha
+            )
+
+            return (frames, statenames, stateitems, bsv3_set, True)
         else:
             # Unsupported or invalid file.
-            return (None, list(), list(), set(), 0, False)
+            return (None, list(), list(), set(), False)
 
 
-def bsv3_259(bsv3_file):
+def bsv3a(bsv3_file, bytepos, cells_imgs, is_alpha):
     with open(bsv3_file, "rb") as f:
-        f.seek(2)
-        cellnumber = int.from_bytes(f.read(2), byteorder="little", signed=False)
-        is_alpha = int.from_bytes(f.read(1), byteorder="little", signed=False)
-
-        # Get the rgb image to be processed.
-        rgb_img_path = Path(bsv3_file.parent, bsv3_file.stem + ".rgb")
-        rgb_img = rgb_parser(rgb_img_path)
-
-        # Set of images used.
-        bsv3_set = set()
-        bsv3_set.add(rgb_img_path.name)
-
-        if rgb_img is False:
-            return (None, list(), list(), set(), 0, False)
-
-        cell = np.array([np.zeros(4)] * cellnumber, dtype=int)
-
-        # Get cells.
-        for i in range(cellnumber):
-            skip = int.from_bytes(f.read(1), byteorder="little", signed=False)
-            f.seek(f.tell() + skip)
-
-            # Read x, y, width and height.
-            cell[i] = np.frombuffer(f.read(8), dtype=np.uint16) + np.array(
-                [-1, -1, +1, +1]
-            )
+        f.seek(bytepos)
 
         # Blocks information.
         blocks = int.from_bytes(f.read(2), byteorder="little", signed=False)
-        subcells = [0 for _ in range(blocks)]
+        subcells_imgs = [list() for _ in range(blocks)]
 
         # Subcell data.
-        index = [np.array([]) for _ in range(blocks)]
-        a = deepcopy(index)
-        b = deepcopy(index)
-        subcell_dim = deepcopy(index)
-        affine_matrix = deepcopy(index)
-        alpha = deepcopy(index)
+        a = [np.array([]) for _ in range(blocks)]
+        b = [np.array([]) for _ in range(blocks)]
+        affine_matrix = [np.array([]) for _ in range(blocks)]
+        alpha = [np.array([]) for _ in range(blocks)]
 
         # Read blocks info.
         for i in range(blocks):
-            subcells[i] = int.from_bytes(f.read(2), byteorder="little", signed=False)
+            subcellnumber = int.from_bytes(f.read(2), byteorder="little", signed=False)
 
             # Ignore extra byte.
             f.seek(f.tell() + 1)
 
             # Info about each subcell.
-            index[i] = np.zeros(subcells[i], dtype=int)
-            a[i] = np.zeros((2, subcells[i]), dtype=np.float32)
-            b[i] = np.zeros((2, subcells[i]), dtype=np.float32)
-            subcell_dim[i] = np.zeros((2, subcells[i]), dtype=np.float32)
+            subcells_imgs[i] = [
+                Image.new_from_array(np.zeros((1, 1, 4)), interpretation="srgb")
+                for _ in range(subcellnumber)
+            ]
+            a[i] = np.zeros((2, subcellnumber), dtype=np.float32)
+            b[i] = np.zeros((2, subcellnumber), dtype=np.float32)
             affine_matrix[i] = np.array(
-                [np.identity(2)] * subcells[i], dtype=np.float32
+                [np.identity(2)] * subcellnumber, dtype=np.float32
             )
-            alpha[i] = np.zeros(subcells[i], dtype=int)
+            alpha[i] = np.zeros(subcellnumber, dtype=int)
 
-            # Skip empty subcells
-            if subcells[i] == 0:
+            # Skip empty blocks.
+            if subcellnumber == 0:
+                subcells_imgs[i]
                 continue
 
-            for j in range(subcells[i]):
-                index[i][j] = int.from_bytes(
-                    f.read(2), byteorder="little", signed=False
-                )
+            # Process subcells.
+            for j in range(subcellnumber):
+                index = int.from_bytes(f.read(2), byteorder="little", signed=False)
 
                 # Get top left corner.
                 a[i][..., j] = np.frombuffer(
@@ -105,31 +135,6 @@ def bsv3_259(bsv3_file):
                     .transpose()
                 )
 
-                # Adjust coordinates accordingly to the affine matrix.
-                if np.linalg.det(affine_matrix[i][j, ...]) > 0:
-                    a[i][0, j] = np.round(a[i][0, j])
-                    a[i][1, j] = np.floor(a[i][1, j])
-                else:
-                    a[i][0, j] = np.floor(a[i][0, j])
-                    a[i][1, j] = np.floor(a[i][1, j])
-
-                # Get edges in counterclockwise direction.
-                edges = (
-                    cell[index[i][j]][2:4].reshape(2, 1)
-                    / 2
-                    * np.array([[1, -1, -1, 1], [1, 1, -1, -1]])
-                )
-
-                # Transform edges.
-                edges = np.matmul(affine_matrix[i][j, ...], edges)
-                edges.sort()
-
-                # Get subcell dimensions.
-                subcell_dim[i][..., j] = edges[..., -1] - edges[..., 0]
-
-                # Get bottom right corner.
-                b[i][..., j] = a[i][..., j] + subcell_dim[i][..., j]
-
                 # Get alpha.
                 if is_alpha == 1:
                     alpha[i][j] = int.from_bytes(
@@ -138,335 +143,82 @@ def bsv3_259(bsv3_file):
                 else:
                     alpha[i][j] = 255
 
-        # Get canvas dimensions.
-        c = np.hstack([a[i] for i in range(blocks) if subcells[i] != 0])
-        d = np.hstack([b[i] for i in range(blocks) if subcells[i] != 0])
-        c.sort()
-        d.sort()
-
-        canvas_dim = np.array(d[..., -1] - c[..., 0], dtype=int)
-
-        # Get states info.
-        statenumber = int.from_bytes(f.read(2), byteorder="little", signed=False)
-        statenames = ["" for _ in range(statenumber)]
-        stateitems = [0 for _ in range(statenumber)]
-
-        for s in range(statenumber):
-            skip = int.from_bytes(f.read(1), byteorder="little", signed=False)
-
-            statenames[s] = f.read(skip - 1).decode("utf8")
-            f.seek(f.tell() + 1)
-
-            start = int.from_bytes(f.read(2), byteorder="little", signed=False)
-            end = int.from_bytes(f.read(2), byteorder="little", signed=False)
-            stateitems[s] = end - start + 1
-
-        # Generate the frames.
-        def generate_frames(
-            rgb_img,
-            cell,
-            blocks,
-            index,
-            a,
-            c,
-            affine_matrix,
-            canvas_dim,
-        ):
-            for i in range(blocks):
-                frame_img = Image.new_from_array(
-                    np.zeros((canvas_dim[1], canvas_dim[0], 4)),
+                subcells_imgs[i][j] = cells_imgs[index].copy()
+                subcell_canvas = Image.new_from_array(
+                    np.zeros(
+                        [
+                            subcells_imgs[i][j].height + 1,
+                            subcells_imgs[i][j].width + 1,
+                            4,
+                        ]
+                    ),
                     interpretation="srgb",
                 )
-
-                if subcells[i] == 0:
-                    yield frame_img
-                    continue
-
-                subcell_img = [0 for _ in range(subcells[i])]
-                for j in range(subcells[i]):
-                    # Crop the cell.
-                    subcell_img[j] = rgb_img.crop(
-                        cell[index[i][j]][0],
-                        cell[index[i][j]][1],
-                        cell[index[i][j]][2],
-                        cell[index[i][j]][3],
-                    )
-                    subcell_img[j] *= [1, 1, 1, alpha[i][j] / 255]  # type: ignore
-                    subcell_img[j] = subcell_img[j].affine(  # type: ignore
-                        affine_matrix[i][j, ...].flatten().tolist(),
-                        interpolate=Interpolate.new("bicubic"),
-                        extend="background",
-                    )
-
-                yield frame_img.composite(  # type: ignore
-                    list(reversed(subcell_img)),
+                subcells_imgs[i][j] = subcell_canvas.composite(  # type: ignore
+                    subcells_imgs[i][j],
+                    x=1,
+                    y=1,
                     mode="over",
-                    x=list(reversed(a[i][0, ...] - c[0, 0])),
-                    y=list(reversed(a[i][1, ...] - c[1, 0])),
                 )
 
-        frame_iterator = generate_frames(
-            rgb_img,
-            cell,
-            blocks,
-            index,
-            a,
-            c,
-            affine_matrix,
-            canvas_dim,
-        )
-
-        return (frame_iterator, statenames, stateitems, bsv3_set, blocks, True)
-
-
-def bsv3_515(bsv3_file):
-    with open(bsv3_file, "rb") as f:
-        f.seek(2)
-        cellnumber = int.from_bytes(f.read(2), byteorder="little", signed=False)
-        is_alpha = int.from_bytes(f.read(1), byteorder="little", signed=False)
-
-        skip = int.from_bytes(f.read(1), byteorder="little", signed=False)
-
-        # Get the rgb image to be processed.
-        rgb_img_path = Path(bsv3_file.parent, f.read(skip).decode("utf8")[0:-1].lower())
-        rgb_img = rgb_parser(rgb_img_path)
-
-        # Set of images used.
-        bsv3_set = set()
-        bsv3_set.add(rgb_img_path.name)
-
-        if rgb_img is False:
-            return (None, list(), list(), set(), 0, False)
-
-        cell = np.array([np.zeros(4)] * cellnumber, dtype=int)
-
-        # Get cells.
-        for i in range(cellnumber):
-            skip = int.from_bytes(f.read(1), byteorder="little", signed=False)
-            f.seek(f.tell() + skip)
-
-            # Read x, y, width and height.
-            cell[i] = np.frombuffer(f.read(8), dtype=np.uint16) + np.array(
-                [-1, -1, +1, +1]
-            )
-
-        # Blocks information.
-        blocks = int.from_bytes(f.read(2), byteorder="little", signed=False)
-        subcells = [0 for _ in range(blocks)]
-
-        # Subcell data.
-        index = [np.array([]) for _ in range(blocks)]
-        a = deepcopy(index)
-        b = deepcopy(index)
-        subcell_dim = deepcopy(index)
-        affine_matrix = deepcopy(index)
-        alpha = deepcopy(index)
-
-        # Read blocks info.
-        for i in range(blocks):
-            subcells[i] = int.from_bytes(f.read(2), byteorder="little", signed=False)
-
-            # Ignore extra byte.
-            f.seek(f.tell() + 1)
-
-            # Info about each subcell.
-            index[i] = np.zeros(subcells[i], dtype=int)
-            a[i] = np.zeros((2, subcells[i]), dtype=np.float32)
-            b[i] = np.zeros((2, subcells[i]), dtype=np.float32)
-            subcell_dim[i] = np.zeros((2, subcells[i]), dtype=np.float32)
-            affine_matrix[i] = np.array(
-                [np.identity(2)] * subcells[i], dtype=np.float32
-            )
-            alpha[i] = np.zeros(subcells[i], dtype=int)
-
-            # Skip empty subcells
-            if subcells[i] == 0:
-                continue
-
-            for j in range(subcells[i]):
-                index[i][j] = int.from_bytes(
-                    f.read(2), byteorder="little", signed=False
-                )
-
-                # Get top left corner.
-                a[i][..., j] = np.frombuffer(
-                    f.read(8), dtype=np.float32, count=2
-                ).transpose()
-
-                # Get coefficients for the affine matrix.
-                # [sx rx]
-                # [ry sy]
-                affine_matrix[i][j, ...] = (
-                    np.frombuffer(
-                        f.read(16),
-                        dtype=np.float32,
-                        count=4,
-                    )
-                    .reshape(2, 2)
-                    .transpose()
-                )
-
-                # Adjust coordinates accordingly to the affine matrix.
+                # Adjust coordinates.
                 if np.linalg.det(affine_matrix[i][j, ...]) > 0:
                     a[i][0, j] = np.round(a[i][0, j])
                     a[i][1, j] = np.floor(a[i][1, j])
                 else:
-                    a[i][0, j] = np.floor(a[i][0, j])
-                    a[i][1, j] = np.floor(a[i][1, j])
+                    a[i][..., j] = np.floor(a[i][..., j])
 
-                # Get edges in counterclockwise direction.
-                edges = (
-                    cell[index[i][j]][2:4].reshape(2, 1)
-                    / 2
-                    * np.array([[1, -1, -1, 1], [1, 1, -1, -1]])
+                subcells_imgs[i][j] *= [1, 1, 1, alpha[i][j] / 255]  # type: ignore
+                subcells_imgs[i][j] = subcells_imgs[i][j].affine(  # type: ignore
+                    affine_matrix[i][j, ...].flatten().tolist(),
+                    interpolate=Interpolate.new("bilinear"),
                 )
 
-                # Transform edges.
-                edges = np.matmul(affine_matrix[i][j, ...], edges)
-                edges.sort()
-
-                # Get subcell dimensions.
-                subcell_dim[i][..., j] = edges[..., -1] - edges[..., 0]
-
                 # Get bottom right corner.
-                b[i][..., j] = a[i][..., j] + subcell_dim[i][..., j]
-
-                # Get alpha.
-                if is_alpha == 1:
-                    alpha[i][j] = int.from_bytes(
-                        f.read(1), byteorder="little", signed=False
-                    )
-                else:
-                    alpha[i][j] = 255
+                b[i][..., j] = a[i][..., j] + np.array(
+                    [subcells_imgs[i][j].width, subcells_imgs[i][j].height]
+                )
 
         # Get canvas dimensions.
-        c = np.hstack([a[i] for i in range(blocks) if subcells[i] != 0])
-        d = np.hstack([b[i] for i in range(blocks) if subcells[i] != 0])
+        c = np.hstack([a[i] for i in range(blocks) if len(subcells_imgs[i]) > 0])
+        d = np.hstack([b[i] for i in range(blocks) if len(subcells_imgs[i]) > 0])
         c.sort()
         d.sort()
 
-        canvas_dim = np.array(d[..., -1] - c[..., 0], dtype=int)
-
-        # Get states info.
-        statenumber = int.from_bytes(f.read(2), byteorder="little", signed=False)
-        statenames = ["" for _ in range(statenumber)]
-        stateitems = [0 for _ in range(statenumber)]
-
-        for s in range(statenumber):
-            skip = int.from_bytes(f.read(1), byteorder="little", signed=False)
-
-            statenames[s] = f.read(skip - 1).decode("utf8")
-            f.seek(f.tell() + 1)
-
-            start = int.from_bytes(f.read(2), byteorder="little", signed=False)
-            end = int.from_bytes(f.read(2), byteorder="little", signed=False)
-            stateitems[s] = end - start + 1
-
-        # Generate the frames.
-        def generate_frames(
-            rgb_img,
-            cell,
-            blocks,
-            index,
-            a,
-            c,
-            affine_matrix,
-            canvas_dim,
-        ):
-            for i in range(blocks):
-                frame_img = Image.new_from_array(
-                    np.zeros((canvas_dim[1], canvas_dim[0], 4)),
-                    interpretation="srgb",
-                )
-
-                if subcells[i] == 0:
-                    yield frame_img
-                    continue
-
-                subcell_img = [0 for _ in range(subcells[i])]
-                for j in range(subcells[i]):
-                    # Crop the cell.
-                    subcell_img[j] = rgb_img.crop(
-                        cell[index[i][j]][0],
-                        cell[index[i][j]][1],
-                        cell[index[i][j]][2],
-                        cell[index[i][j]][3],
-                    )
-                    subcell_img[j] *= [1, 1, 1, alpha[i][j] / 255]  # type: ignore
-                    subcell_img[j] = subcell_img[j].affine(  # type: ignore
-                        affine_matrix[i][j, ...].flatten().tolist(),
-                        interpolate=Interpolate.new("bicubic"),
-                        extend="background",
-                    )
-
-                yield frame_img.composite(  # type: ignore
-                    list(reversed(subcell_img)),
-                    mode="over",
-                    x=list(reversed(a[i][0, ...] - c[0, 0])),
-                    y=list(reversed(a[i][1, ...] - c[1, 0])),
-                )
-
-        frame_iterator = generate_frames(
-            rgb_img,
-            cell,
-            blocks,
-            index,
-            a,
-            c,
-            affine_matrix,
-            canvas_dim,
+        canvas_dim = np.array(np.ceil(d[..., -1] - c[..., 0]), dtype=int)
+        canvas_img = Image.new_from_array(
+            np.zeros((canvas_dim[1], canvas_dim[0], 4)), interpretation="srgb"
         )
 
-        return (frame_iterator, statenames, stateitems, bsv3_set, blocks, True)
+        # Correct coordinates.
+        a = [a[i] - np.array(c[..., 0]).reshape(2, 1) for i in range(blocks)]
+
+        # Get states info.
+        statenames, stateitems = get_states(bsv3_file, f.tell())
+
+        # Get frames.
+        frames = frame_iterator(canvas_img, subcells_imgs, a)
+        return (frames, statenames, stateitems)
 
 
-def bsv3_771(bsv3_file):
+def bsv3b(bsv3_file, bytepos, cells_imgs, is_alpha):
     with open(bsv3_file, "rb") as f:
-        f.seek(2)
-
-        unknown = np.frombuffer(f.read(4), dtype=np.float32)
-        cellnumber = int.from_bytes(f.read(2), byteorder="little", signed=False)
-        is_alpha = int.from_bytes(f.read(1), byteorder="little", signed=False)
-
-        # Get the rgb image to be processed.
-        rgb_img_path = Path(bsv3_file.parent, bsv3_file.stem + ".rgb")
-        rgb_img = rgb_parser(rgb_img_path)
-
-        # Set of images used.
-        bsv3_set = set()
-        bsv3_set.add(rgb_img_path.name)
-
-        if rgb_img is False:
-            return (None, list(), list(), set(), 0, False)
-
-        cell = np.array([np.zeros(4)] * cellnumber, dtype=int)
-
-        # Get cells.
-        for i in range(cellnumber):
-            skip = int.from_bytes(f.read(1), byteorder="little", signed=False)
-            f.seek(f.tell() + skip)
-
-            # Read x, y, width and height.
-            cell[i] = np.frombuffer(f.read(8), dtype=np.uint16) + np.array(
-                [-1, -1, +1, +1]
-            )
+        f.seek(bytepos)
 
         # Blocks information.
         blocks = int.from_bytes(f.read(2), byteorder="little", signed=False)
-        subcells = int.from_bytes(
-            f.read(2), byteorder="little", signed=False
-        )  # Number of subcells.
+        subcellnumber = int.from_bytes(f.read(2), byteorder="little", signed=False)
+        subcells_imgs = [Image.black(1, 1) for _ in range(subcellnumber)]  # type: ignore
 
         # Subcell data.
-        index = np.zeros(subcells, dtype=int)
-        a = np.zeros((2, subcells), dtype=np.float32)
-        b = np.zeros((2, subcells), dtype=np.float32)
-        subcell_dim = np.zeros((2, subcells), dtype=np.float32)
-        affine_matrix = np.array([np.identity(2)] * subcells, dtype=np.float32)
-        alpha = np.zeros(subcells, dtype=int)
+        a = np.zeros((2, subcellnumber), dtype=np.float32)
+        b = np.zeros((2, subcellnumber), dtype=np.float32)
+        affine_matrix = np.array([np.identity(2)] * subcellnumber, dtype=np.float32)
+        alpha = np.zeros(subcellnumber, dtype=int)
 
-        for j in range(subcells):
-            index[j] = int.from_bytes(f.read(2), byteorder="little", signed=False)
+        # Process subcells.
+        for j in range(subcellnumber):
+            index = int.from_bytes(f.read(2), byteorder="little", signed=False)
 
             # Get top left corner.
             a[..., j] = np.frombuffer(f.read(8), dtype=np.float32, count=2).transpose()
@@ -484,36 +236,47 @@ def bsv3_771(bsv3_file):
                 .transpose()
             )
 
-            # Adjust coordinates accordingly to the affine matrix.
-            if np.linalg.det(affine_matrix[j, ...]) > 0:
-                a[0, j] = np.round(a[0, j])
-                a[1, j] = np.floor(a[1, j])
-            else:
-                a[0, j] = np.floor(a[0, j])
-                a[1, j] = np.floor(a[1, j])
-
-            # Get edges in counterclockwise direction.
-            edges = (
-                cell[index[j]][2:4].reshape(2, 1)
-                / 2
-                * np.array([[1, -1, -1, 1], [1, 1, -1, -1]])
-            )
-
-            # Transform edges.
-            edges = np.matmul(affine_matrix[j, ...], edges)
-            edges.sort()
-
-            # Get subcell dimensions.
-            subcell_dim[..., j] = edges[..., -1] - edges[..., 0]
-
-            # Get bottom right corner.
-            b[..., j] = a[..., j] + subcell_dim[..., j]
-
             # Get alpha.
             if is_alpha == 1:
                 alpha[j] = int.from_bytes(f.read(1), byteorder="little", signed=False)
             else:
                 alpha[j] = 255
+
+            subcells_imgs[j] = cells_imgs[index].copy()
+            subcell_canvas = Image.new_from_array(
+                np.zeros(
+                    [
+                        subcells_imgs[j].height + 1,
+                        subcells_imgs[j].width + 1,
+                        4,
+                    ]
+                ),
+                interpretation="srgb",
+            )
+            subcells_imgs[j] = subcell_canvas.composite(  # type: ignore
+                subcells_imgs[j],
+                x=1,
+                y=1,
+                mode="over",
+            )
+            # Adjust coordinates.
+            if np.linalg.det(affine_matrix[j, ...]) > 0:
+                a[0, j] = int(a[0, j] + 0.5)
+                a[1, j] = np.floor(a[1, j] + 0.75)
+            else:
+                a[0, j] = int(a[0, j] + 0.95)
+                a[1, j] = np.floor(a[1, j])
+
+            subcells_imgs[j] *= [1, 1, 1, alpha[j] / 255]  # type: ignore
+            subcells_imgs[j] = subcells_imgs[j].affine(  # type: ignore
+                affine_matrix[j, ...].flatten().tolist(),
+                interpolate=Interpolate.new("bilinear"),
+            )
+
+            # Get bottom right corner.
+            b[..., j] = a[..., j] + np.array(
+                [subcells_imgs[j].width, subcells_imgs[j].height]
+            )
 
         # Get canvas dimensions.
         c = a.copy()
@@ -521,90 +284,31 @@ def bsv3_771(bsv3_file):
         d = b.copy()
         d.sort()
 
-        canvas_dim = np.array(d[..., -1] - c[..., 0], dtype=int)
+        canvas_dim = np.array(np.ceil(d[..., -1] - c[..., 0]), dtype=int)
+        canvas_img = Image.new_from_array(
+            np.zeros((canvas_dim[1], canvas_dim[0], 4)), interpretation="srgb"
+        )
+
+        # Correct coordinates.
+        a -= np.array(c[..., 0]).reshape(2, 1)
 
         # Read frames info.
-        frames_items = [np.zeros(0) for _ in range(blocks)]
+        frames_items = [list() for _ in range(blocks)]
+        fi_a = [np.array([]) for _ in range(blocks)]
         for i in range(blocks):
             subcells = int.from_bytes(f.read(2), byteorder="little", signed=False)
             f.seek(f.tell() + 1)  # extra byte to ignore.
 
-            frames_items[i] = np.zeros(subcells, dtype=int)
+            frames_items[i] = [Image.black(1, 1) for _ in range(subcells)]  # type: ignore
+            fi_a[i] = np.zeros((2, subcells))
             for j in range(subcells):
-                frames_items[i][j] = int.from_bytes(
-                    f.read(2), byteorder="little", signed=False
-                )
+                index = int.from_bytes(f.read(2), byteorder="little", signed=False)
+                frames_items[i][j] = subcells_imgs[index].copy()
+                fi_a[i][..., j] = a[..., index]
 
         # Get states info.
-        statenumber = int.from_bytes(f.read(2), byteorder="little", signed=False)
-        statenames = ["" for _ in range(statenumber)]
-        stateitems = [0 for _ in range(statenumber)]
+        statenames, stateitems = get_states(bsv3_file, f.tell())
 
-        for s in range(statenumber):
-            skip = int.from_bytes(f.read(1), byteorder="little", signed=False)
-
-            statenames[s] = f.read(skip - 1).decode("utf8")
-            f.seek(f.tell() + 1)
-
-            start = int.from_bytes(f.read(2), byteorder="little", signed=False)
-            end = int.from_bytes(f.read(2), byteorder="little", signed=False)
-            stateitems[s] = end - start + 1
-
-        # Generate the frames.
-        def generate_frames(
-            rgb_img,
-            cell,
-            blocks,
-            index,
-            a,
-            c,
-            affine_matrix,
-            canvas_dim,
-            frames_items,
-        ):
-            for i in range(blocks):
-                frame_img = Image.new_from_array(
-                    np.zeros((canvas_dim[1], canvas_dim[0], 4)),
-                    interpretation="srgb",
-                )
-
-                if frames_items[i].ndim == 0:
-                    yield frame_img
-                    continue
-
-                subcell_img = [0 for _ in frames_items[i]]
-                for j, k in zip(frames_items[i], range(len(subcell_img))):
-                    # Crop the cell.
-                    subcell_img[k] = rgb_img.crop(
-                        cell[index[j]][0],
-                        cell[index[j]][1],
-                        cell[index[j]][2],
-                        cell[index[j]][3],
-                    )
-                    subcell_img[k] *= [1, 1, 1, alpha[j] / 255]  # type: ignore
-                    subcell_img[k] = subcell_img[k].affine(  # type: ignore
-                        affine_matrix[j, ...].flatten().tolist(),
-                        interpolate=Interpolate.new("bicubic"),
-                        extend="background",
-                    )
-
-                yield frame_img.composite(  # type: ignore
-                    list(reversed(subcell_img)),
-                    mode="over",
-                    x=list(reversed(a[0, frames_items[i]] - c[0, 0])),
-                    y=list(reversed(a[1, frames_items[i]] - c[1, 0])),
-                )
-
-        frame_iterator = generate_frames(
-            rgb_img,
-            cell,
-            blocks,
-            index,
-            a,
-            c,
-            affine_matrix,
-            canvas_dim,
-            frames_items,
-        )
-
-        return (frame_iterator, statenames, stateitems, bsv3_set, blocks, True)
+        # Get frames.
+        frames = frame_iterator(canvas_img, frames_items, fi_a)
+        return (frames, statenames, stateitems)

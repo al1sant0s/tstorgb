@@ -1,7 +1,9 @@
 import argparse
-from tstorgb.parsers import bcell_parser, rgb_parser, bsv3_parser, report_progress
 from pathlib import Path
 from zipfile import ZipFile, is_zipfile
+from pyvips import Image, GValue
+from tstorgb.parsers import bcell_parser, rgb_parser, bsv3_parser
+from tstorgb.tools.progress import report_progress
 
 
 def progress_str(n, total, filestem, extension):
@@ -64,6 +66,21 @@ def main():
         """,
         default="png",
     )
+    parser.add_argument(
+        "--sequential",
+        help="""
+        Produce animated images for specific image formats (e.g. webp).
+        """,
+        action="store_true",
+    )
+    parser.add_argument(
+        "--sequential_delay",
+        help="""
+        Time delay in miliseconds to wait between frames for the animated images produced with the --sequential argument.
+        """,
+        default=100,
+        type=int,
+    )
 
     parser.add_argument(
         "input_dir",
@@ -124,7 +141,7 @@ def main():
         # Process bcell files.
         if args.disable_bcell is False:
             for bcell_file in directory.glob("**/*.bcell"):
-                frames, new_set, blocks, success = bcell_parser(
+                frames, framenumber, new_set, success = bcell_parser(
                     bcell_file, disable_shadows=args.disable_shadows
                 )
 
@@ -150,19 +167,58 @@ def main():
                 target.mkdir(parents=True, exist_ok=True)
 
                 # How the frames will be saved.
-                for i in range(blocks):
-                    frame_img = next(frames)  # type: ignore
-                    frame_img.write_to_file(  # type: ignore
+                if args.sequential is True:
+                    report_frames = (
+                        report_progress(
+                            progress_str(n, total, bcell_file.stem, "bcell"),
+                            f"[{i + 1}/{framenumber}]",
+                        )
+                        for i in range(framenumber)
+                    )
+
+                    animation_frames = (
+                        Image.new_from_buffer(  # type: ignore
+                            next(frames).write_to_buffer(  # type: ignore
+                                f".{args.output_extension}",
+                                Q=args.image_quality,
+                            ),
+                            options="",
+                            access="sequential",
+                        )
+                        for _ in report_frames
+                    )
+
+                    animation = next(animation_frames).pagejoin(  # type: ignore
+                        list(animation_frames)
+                    )
+
+                    animation.set_type(
+                        GValue.array_int_type,
+                        "delay",
+                        [args.sequential_delay for _ in range(framenumber)],
+                    )
+
+                    animation.write_to_file(  # type: ignore
                         Path(
                             target,
-                            f"{i}.{args.output_extension}",
+                            f"{bcell_file.stem}.{args.output_extension}",
                         ),
                         Q=args.image_quality,
                     )
-                    report_progress(
-                        progress_str(n, total, bcell_file.stem, "bcell"),
-                        f"[{i + 1}/{blocks}]",
-                    )
+
+                else:
+                    for i in range(framenumber):
+                        next(frames).write_to_file(  # type: ignore
+                            Path(
+                                target,
+                                f"{i}.{args.output_extension}",
+                            ),
+                            Q=args.image_quality,
+                        )
+                        report_progress(
+                            progress_str(n, total, bcell_file.stem, "bcell"),
+                            f"[{i + 1}/{framenumber}]",
+                        )
 
         else:
             n += len(list(directory.glob("**/*.bcell")))
@@ -170,9 +226,11 @@ def main():
         # Process bsv3 files.
         if args.disable_bsv3 is False:
             for bsv3_file in directory.glob("**/*.bsv3"):
-                frames, statenames, stateitems, new_set, blocks, success = bsv3_parser(
+                frames, statenames, stateitems, new_set, success = bsv3_parser(
                     bsv3_file
                 )
+
+                framenumber = sum(stateitems)
 
                 n += 1
 
@@ -199,18 +257,58 @@ def main():
                 for s, t, u in zip(statenames, stateitems, range(len(stateitems))):
                     dest = Path(target, s)
                     dest.mkdir(exist_ok=True)
-                    for i in range(t):
-                        next(frames).write_to_file(  # type: ignore
+                    if args.sequential is True:
+                        report_frames = (
+                            report_progress(
+                                progress_str(n, total, bsv3_file.stem, "bsv3"),
+                                f"[{i + 1 + sum(stateitems[:u])}/{framenumber}]",
+                            )
+                            for i in range(t)
+                        )
+
+                        animation_frames = (
+                            Image.new_from_buffer(  # type: ignore
+                                next(frames).write_to_buffer(  # type: ignore
+                                    f".{args.output_extension}",
+                                    Q=args.image_quality,
+                                ),
+                                options="",
+                                access="sequential",
+                            )
+                            for _ in report_frames
+                        )
+
+                        animation = next(animation_frames).pagejoin(  # type: ignore
+                            list(animation_frames)
+                        )
+
+                        animation.set_type(
+                            GValue.array_int_type,
+                            "delay",
+                            [args.sequential_delay for _ in range(framenumber)],
+                        )
+
+                        animation.write_to_file(  # type: ignore
                             Path(
                                 dest,
-                                f"{i}.{args.output_extension}",
+                                f"{s}.{args.output_extension}",
                             ),
                             Q=args.image_quality,
                         )
-                        report_progress(
-                            progress_str(n, total, bsv3_file.stem, "bsv3"),
-                            f"[{i + 1 + sum(stateitems[:u])}/{blocks}]",
-                        )
+
+                    else:
+                        for i in range(t):
+                            next(frames).write_to_file(  # type: ignore
+                                Path(
+                                    dest,
+                                    f"{i}.{args.output_extension}",
+                                ),
+                                Q=args.image_quality,
+                            )
+                            report_progress(
+                                progress_str(n, total, bsv3_file.stem, "bsv3"),
+                                f"[{i + 1 + sum(stateitems[:u])}/{framenumber}]",
+                            )
 
         else:
             n += len(list(directory.glob("**/*.bsv3")))
