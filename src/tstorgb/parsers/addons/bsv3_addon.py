@@ -7,13 +7,16 @@ def crop_cells(bsv3_file, bytepos, rgb_img, cellnumber):
         f.seek(bytepos)
 
         cells_imgs = [Image.black(1, 1) for _ in range(cellnumber)]  # type: ignore
-        # cells_orientation = np.zeros((2, cellnumber))
-        # img_array = rgb_img.numpy()
+        cells_types = ["normal" for _ in range(cellnumber)]
 
         # Get cells.
         for i in range(cellnumber):
             skip = int.from_bytes(f.read(1), byteorder="little", signed=False)
-            f.seek(f.tell() + skip)
+            cellname = f.read(skip).decode("utf8")[0:-1].lower()
+
+            # Determine cell type for later operations.
+            if "crop" in cellname:
+                cells_types[i] = "crop"
 
             # Read x, y, width and height.
             region = np.frombuffer(f.read(8), dtype=np.uint16)
@@ -23,31 +26,34 @@ def crop_cells(bsv3_file, bytepos, rgb_img, cellnumber):
             w = int(region[2])
             h = int(region[3])
 
-            # Check 4 edges.
-            # dx = 0
-            # dy = 0
-            # if x - 1 >= 0 and np.any(img_array[y : y + h + 1, x - 1, :]) is np.True_:
-            #    dx -= 1
-            # if (
-            #    x + w + 1 <= img_array.shape[1]
-            #    and np.any(img_array[y : y + h + 1, x + w, :]) is np.True_
-            # ):
-            #    dx += 1
-
-            # if y - 1 >= 0 and np.any(img_array[y - 1, x : x + w + 1, :]) is np.True_:
-            #    dy -= 1
-
-            # if (
-            #    y + h + 1 < img_array.shape[0]
-            #    and np.any(img_array[y + h, x : x + w + 1, :]) is np.True_
-            # ):
-            #    dy += 1
-
-            # cells_orientation[..., i] = np.array([dx, dy], dtype=int)
-
             cells_imgs[i] = rgb_img.crop(x, y, w, h)
 
-        return (cells_imgs, f.tell())
+        return (cells_imgs, cells_types, f.tell())
+
+
+def check_cell_edges(cell_img):
+    # Check 4 edges.
+
+    x = 0
+    y = 0
+    w = cell_img.width
+    h = cell_img.height
+    img_array = cell_img.numpy()
+
+    if np.any(img_array[y : y + h, x, 3]) is np.True_:
+        return True
+
+    elif np.any(img_array[y : y + h, x + w - 1, 3]) is np.True_:
+        return True
+
+    elif np.any(img_array[y, x : x + w, 3]) is np.True_:
+        return True
+
+    elif np.any(img_array[y + h - 1, x : x + w, 3]) is np.True_:
+        return True
+
+    else:
+        return False
 
 
 def get_states(bsv3_file, bytepos):
@@ -82,4 +88,5 @@ def frame_iterator(canvas_img, subcells_imgs, a):
             mode="over",
             x=list(reversed(np.array(a[i][0, ...], dtype=int))),
             y=list(reversed(np.array(a[i][1, ...], dtype=int))),
+            premultiplied=False,
         )

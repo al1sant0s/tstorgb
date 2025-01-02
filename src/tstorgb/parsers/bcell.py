@@ -3,7 +3,8 @@ from pathlib import Path
 from copy import deepcopy
 from importlib import resources
 from pyvips import Image, Interpolate
-from tstorgb.parsers import rgb, rgb_parser
+from tstorgb.parsers import rgb_parser
+from tstorgb.parsers.addons.bcell_addon import generate_frames
 
 
 def bcell_parser(bcell_file, **kwargs):
@@ -27,19 +28,19 @@ def bcell_10(bcell_file):
         # Blocks information.
         blocks = int.from_bytes(f.read(2), byteorder="little", signed=False)
 
-        subcells_img = [None for _ in range(blocks)]
-        byte_pos = [0 for _ in range(blocks)]
-        a = np.zeros((2, blocks), dtype=int)
-        b = np.zeros((2, blocks), dtype=int)
-        subcell_dim = np.zeros((2, blocks), dtype=int)
+        subcells_imgs = [list() for _ in range(blocks)]
+        bytepos = [0 for _ in range(blocks)]
+        a = [np.zeros((2, 1), dtype=int) for _ in range(blocks)]
+        b = [np.zeros((2, 1), dtype=int) for _ in range(blocks)]
+        subcells_dim = [np.zeros((2, 1), dtype=int) for _ in range(blocks)]
 
         # Read blocks info.
         for i in range(blocks):
             # Read 24 bit byte position.
-            byte_value = int.from_bytes(f.read(1), "little", signed=False)
-            byte_pos[i] = (
+            bytevalue = int.from_bytes(f.read(1), "little", signed=False)
+            bytepos[i] = (
                 int.from_bytes(f.read(2), "little", signed=False) << 8
-            ) + byte_value
+            ) + bytevalue
 
             # Ignore extra byte.
             f.read(1)
@@ -48,53 +49,39 @@ def bcell_10(bcell_file):
             # So it gets stored but is unused in this code.
             unknown = np.frombuffer(f.read(4), dtype=np.float32)[0]
 
-            a[..., i] = np.frombuffer(f.read(4), dtype=np.int16, count=2).transpose()
+            a[i][..., 0] = np.frombuffer(f.read(4), dtype=np.int16, count=2).transpose()
 
             # Ignore extra byte.
             f.read(1)
 
             # Get the subcell image.
-            rgb_img = rgb_parser(bcell_file, byte_seek=byte_pos[i])
+            rgb_img = rgb_parser(bcell_file, byte_seek=bytepos[i])
             if rgb_img is False:
                 continue
             else:
-                subcells_img[i] = rgb_img  # type: ignore
+                subcells_imgs[i].append(rgb_img)
 
             # Get subcell dimensions.
-            subcell_dim[0, i] = subcells_img[i].width  # type: ignore
-            subcell_dim[1, i] = subcells_img[i].height  # type: ignore
+            subcells_dim[i][0, 0] = subcells_imgs[i][0].width
+            subcells_dim[i][1, 0] = subcells_imgs[i][0].height
 
-            b[..., i] = a[..., i] + subcell_dim[..., i] + np.array([2, 2])
+            b[i][..., 0] = a[i][..., 0] + subcells_dim[i][..., 0]
 
-    c = deepcopy(a)
-    d = deepcopy(b)
+    c = deepcopy(np.hstack(a))
+    d = deepcopy(np.hstack(b))
     c.sort()
     d.sort()
 
     canvas_dim = np.array(d[..., -1] - c[..., 0], dtype=int)
+    canvas_img = Image.new_from_array(
+        np.zeros((canvas_dim[1], canvas_dim[0], 4)), interpretation="srgb"
+    )
+
+    # Correct coordinates.
+    a = [a[i] - np.array(c[..., 0]).reshape(2, 1) for i in range(blocks)]
 
     # Generate the frames.
-    def generate_frames(
-        subcells_img,
-        blocks,
-        a,
-        c,
-        canvas_dim,
-    ):
-        for i in range(blocks):
-            frame_img = Image.new_from_array(
-                np.zeros((canvas_dim[1], canvas_dim[0], 4)),
-                interpretation="srgb",
-            )
-
-            yield frame_img.composite(  # type: ignore
-                subcells_img[i],
-                mode="over",
-                x=(a[0, i] - c[0, 0]),
-                y=(a[1, i] - c[1, 0]),
-            )
-
-    frame_iterator = generate_frames(subcells_img, blocks, a, c, canvas_dim)
+    frame_iterator = generate_frames(canvas_img, subcells_imgs, a)
 
     return (frame_iterator, blocks, set(), True)
 
@@ -110,10 +97,10 @@ def bcell_11(bcell_file):
         blocks = int.from_bytes(f.read(2), byteorder="little", signed=False)
 
         frames = ["" for _ in range(blocks)]
-        subcells_img = [None for _ in range(blocks)]
-        a = np.zeros((2, blocks), dtype=int)
-        b = np.zeros((2, blocks), dtype=int)
-        subcell_dim = np.zeros((2, blocks), dtype=int)
+        subcells_imgs = [list() for _ in range(blocks)]
+        a = [np.zeros((2, 1), dtype=int) for _ in range(blocks)]
+        b = [np.zeros((2, 1), dtype=int) for _ in range(blocks)]
+        subcells_dim = [np.zeros((2, 1), dtype=int) for _ in range(blocks)]
 
         # Read blocks info.
         for i in range(blocks):
@@ -125,7 +112,7 @@ def bcell_11(bcell_file):
             # So it gets stored but is unused in this code.
             unknown = np.frombuffer(f.read(4), dtype=np.float32)[0]
 
-            a[..., i] = np.frombuffer(f.read(4), dtype=np.int16, count=2).transpose()
+            a[i][..., 0] = np.frombuffer(f.read(4), dtype=np.int16, count=2).transpose()
 
             # Ignore extra byte.
             f.read(1)
@@ -137,43 +124,29 @@ def bcell_11(bcell_file):
                 continue
             else:
                 bcell_set.add(frames[i])
-                subcells_img[i] = rgb_img  # type: ignore
+                subcells_imgs[i].append(rgb_img)
 
             # Get subcell dimensions.
-            subcell_dim[0, i] = subcells_img[i].width  # type: ignore
-            subcell_dim[1, i] = subcells_img[i].height  # type: ignore
+            subcells_dim[i][0, 0] = subcells_imgs[i][0].width
+            subcells_dim[i][1, 0] = subcells_imgs[i][0].height
 
-            b[..., i] = a[..., i] + subcell_dim[..., i] + np.array([2, 2])
+            b[i][..., 0] = a[i][..., 0] + subcells_dim[i][..., 0]
 
-    c = deepcopy(a)
-    d = deepcopy(b)
+    c = deepcopy(np.hstack(a))
+    d = deepcopy(np.hstack(b))
     c.sort()
     d.sort()
 
     canvas_dim = np.array(d[..., -1] - c[..., 0], dtype=int)
+    canvas_img = Image.new_from_array(
+        np.zeros((canvas_dim[1], canvas_dim[0], 4)), interpretation="srgb"
+    )
+
+    # Correct coordinates.
+    a = [a[i] - np.array(c[..., 0]).reshape(2, 1) for i in range(blocks)]
 
     # Generate the frames.
-    def generate_frames(
-        subcells_img,
-        blocks,
-        a,
-        c,
-        canvas_dim,
-    ):
-        for i in range(blocks):
-            frame_img = Image.new_from_array(
-                np.zeros((canvas_dim[1], canvas_dim[0], 4)),
-                interpretation="srgb",
-            )
-
-            yield frame_img.composite(  # type: ignore
-                subcells_img[i],
-                mode="over",
-                x=(a[0, i] - c[0, 0]),
-                y=(a[1, i] - c[1, 0]),
-            )
-
-    frame_iterator = generate_frames(subcells_img, blocks, a, c, canvas_dim)
+    frame_iterator = generate_frames(canvas_img, subcells_imgs, a)
 
     return (frame_iterator, blocks, bcell_set, True)
 
@@ -198,12 +171,13 @@ def bcell_13(bcell_file, disable_shadows=False):
 
         # frame data.
         frames = [list() for _ in range(blocks)]
-        subcells_img = deepcopy(frames)
+        subcells_imgs = deepcopy(frames)
         a = [np.array([]) for _ in range(blocks)]
         b = deepcopy(a)
-        subcell_dim = deepcopy(a)
+        subcells_dim = deepcopy(a)
         affine_matrix = deepcopy(a)
         alpha = deepcopy(a)
+        interp = Interpolate.new("bicubic")
 
         # Read blocks info.
         for i in range(blocks):
@@ -220,7 +194,7 @@ def bcell_13(bcell_file, disable_shadows=False):
             # Shape the arrays.
             a[i] = np.zeros((2, subcells[i]), dtype=np.float32)
             b[i] = np.zeros((2, subcells[i]), dtype=np.float32)
-            subcell_dim[i] = np.zeros((2, subcells[i]), dtype=np.float32)
+            subcells_dim[i] = np.zeros((2, subcells[i]), dtype=np.float32)
             affine_matrix[i] = np.array(
                 [np.identity(2)] * subcells[i], dtype=np.float32
             )
@@ -242,9 +216,9 @@ def bcell_13(bcell_file, disable_shadows=False):
                     # Get the subcell image.
                     rgb_img = rgb_parser(Path(bcell_file.parent, frames[i][j]))
                     if rgb_img is False:
-                        subcells_img[i].append(null_img.copy())  # type: ignore
+                        subcells_imgs[i].append(null_img.copy())  # type: ignore
                     else:
-                        subcells_img[i].append(rgb_img)
+                        subcells_imgs[i].append(rgb_img)
 
                 else:
                     skip = int.from_bytes(f.read(1))
@@ -255,12 +229,12 @@ def bcell_13(bcell_file, disable_shadows=False):
 
                     # Add shadows.
                     if frames[i][j] == "SHADOW" and not disable_shadows:
-                        subcells_img[i].append(shadow_img.copy())  # type: ignore
+                        subcells_imgs[i].append(shadow_img.copy())  # type: ignore
 
                     # Anything else is not supported.
                     else:
                         # Create empty image
-                        subcells_img[i].append(null_img.copy())  # type: ignore
+                        subcells_imgs[i].append(null_img.copy())  # type: ignore
                         f.read(28)
                         frames[i][j] = "null"
                         continue
@@ -283,23 +257,19 @@ def bcell_13(bcell_file, disable_shadows=False):
                         .transpose()
                     )
 
+                    # Get alpha.
                     alpha[i][j] = np.frombuffer(f.read(4), dtype=np.float32)
 
-                # Get edges in counterclockwise direction.
-                edges = (
-                    np.array(
-                        (subcells_img[i][j].width, subcells_img[i][j].height)
-                    ).reshape(2, 1)
-                    / 2
-                    * np.array([[1, -1, -1, 1], [1, 1, -1, -1]])
+                subcells_imgs[i][j] *= [1, 1, 1, alpha[i][j]]
+                subcells_imgs[i][j] = subcells_imgs[i][j].affine(
+                    affine_matrix[i][j, ...].flatten().tolist(),
+                    interpolate=interp,
+                    extend="background",
                 )
 
-                # Transform edges.
-                edges = np.matmul(affine_matrix[i][j, ...], edges)
-                edges.sort()
-
                 # Get subcell dimensions.
-                subcell_dim[i][..., j] = edges[..., -1] - edges[..., 0]
+                subcells_dim[i][0, j] = subcells_imgs[i][j].width
+                subcells_dim[i][1, j] = subcells_imgs[i][j].height
 
                 # Adjust coordinates accordingly to the affine matrix.
                 if np.linalg.det(affine_matrix[i][j, ...]) > 0:
@@ -310,10 +280,10 @@ def bcell_13(bcell_file, disable_shadows=False):
                     a[i][1, j] = np.floor(a[i][1, j])
 
                     # Position shadows correctly according to its determinant signal. [positive -> from left side; negative <- from right side]
-                    a[i][0, j] -= subcell_dim[i][0, j]
+                    a[i][0, j] -= subcells_dim[i][0, j]
 
                 # Get bottom right corner.
-                b[i][..., j] = a[i][..., j] + subcell_dim[i][..., j] + np.array([2, 2])
+                b[i][..., j] = a[i][..., j] + subcells_dim[i][..., j]
 
         # Get canvas dimensions.
         c = np.array(
@@ -335,45 +305,15 @@ def bcell_13(bcell_file, disable_shadows=False):
         c.sort()
         d.sort()
 
-        canvas_dim = np.array(d[..., -1] - c[..., 0], dtype=int)
+        canvas_dim = np.array(np.ceil(d[..., -1] - c[..., 0]), dtype=int)
+        canvas_img = Image.new_from_array(
+            np.zeros((canvas_dim[1], canvas_dim[0], 4)), interpretation="srgb"
+        )
+
+        # Correct coordinates.
+        a = [a[i] - np.array(c[..., 0]).reshape(2, 1) for i in range(blocks)]
 
         # Generate the frames.
-        def generate_frames(
-            subcells_img,
-            blocks,
-            a,
-            c,
-            affine_matrix,
-            canvas_dim,
-        ):
-            for i in range(blocks):
-                frame_img = Image.new_from_array(
-                    np.zeros((canvas_dim[1], canvas_dim[0], 4)),
-                    interpretation="srgb",
-                )
-
-                for j in range(subcells[i]):
-                    subcells_img[i][j] *= [1, 1, 1, alpha[i][j]]
-                    subcells_img[i][j] = subcells_img[i][j].affine(
-                        affine_matrix[i][j, ...].flatten().tolist(),
-                        interpolate=Interpolate.new("bicubic"),
-                        extend="background",
-                    )
-
-                yield frame_img.composite(  # type: ignore
-                    list(reversed(subcells_img[i])),
-                    mode="over",
-                    x=list(reversed(a[i][0, ...] - c[0, 0])),
-                    y=list(reversed(a[i][1, ...] - c[1, 0])),
-                )
-
-        frame_iterator = generate_frames(
-            subcells_img,
-            blocks,
-            a,
-            c,
-            affine_matrix,
-            canvas_dim,
-        )
+        frame_iterator = generate_frames(canvas_img, subcells_imgs, a)
 
         return (frame_iterator, blocks, bcell_set, True)
