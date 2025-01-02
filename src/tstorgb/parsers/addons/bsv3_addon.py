@@ -8,6 +8,8 @@ def crop_cells(bsv3_file, bytepos, rgb_img, cellnumber):
 
         cells_imgs = [Image.black(1, 1) for _ in range(cellnumber)]  # type: ignore
         cells_types = ["normal" for _ in range(cellnumber)]
+        cells_regions = [np.zeros(4, dtype=int) for _ in range(cellnumber)]
+        img_array = rgb_img.numpy()
 
         # Get cells.
         for i in range(cellnumber):
@@ -19,41 +21,41 @@ def crop_cells(bsv3_file, bytepos, rgb_img, cellnumber):
                 cells_types[i] = "crop"
 
             # Read x, y, width and height.
-            region = np.frombuffer(f.read(8), dtype=np.uint16)
+            regions = np.frombuffer(f.read(8), dtype=np.uint16).reshape(4)
 
-            x = int(region[0])
-            y = int(region[1])
-            w = int(region[2])
-            h = int(region[3])
+            x = int(regions[0])
+            y = int(regions[1])
+            w = int(regions[2])
+            h = int(regions[3])
 
-            cells_imgs[i] = rgb_img.crop(x, y, w, h)
+            # Check 4 edges.
+            dx = 0
+            dy = 0
+            dw = 0
+            dh = 0
+            if x - 1 >= 0 and np.any(img_array[y : y + h, x - 1, :]) is np.True_:
+                dx -= 1
+                dw += 1
+            if (
+                x + w < img_array.shape[1]
+                and np.any(img_array[y : y + h, x + w, :]) is np.True_
+            ):
+                dw += 1
 
-        return (cells_imgs, cells_types, f.tell())
+            if y - 1 >= 0 and np.any(img_array[y - 1, x : x + w, :]) is np.True_:
+                dy -= 1
+                dh += 1
 
+            if (
+                y + h < img_array.shape[0]
+                and np.any(img_array[y + h, x : x + w, :]) is np.True_
+            ):
+                dh += 1
 
-def check_cell_edges(cell_img):
-    # Check 4 edges.
+            cells_imgs[i] = rgb_img.crop(x + dx, y + dy, w + dw, h + dh)
+            cells_regions[i] = np.array([-dx, -dy, w, h]).reshape(4)
 
-    x = 0
-    y = 0
-    w = cell_img.width
-    h = cell_img.height
-    img_array = cell_img.numpy()
-
-    if np.any(img_array[y : y + h, x, 3]) is np.True_:
-        return True
-
-    elif np.any(img_array[y : y + h, x + w - 1, 3]) is np.True_:
-        return True
-
-    elif np.any(img_array[y, x : x + w, 3]) is np.True_:
-        return True
-
-    elif np.any(img_array[y + h - 1, x : x + w, 3]) is np.True_:
-        return True
-
-    else:
-        return False
+        return (cells_imgs, cells_types, cells_regions, f.tell())
 
 
 def get_states(bsv3_file, bytepos):

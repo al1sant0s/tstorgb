@@ -35,13 +35,13 @@ def bsv3_parser(bsv3_file):
                 return (None, list(), list(), set(), False)
 
             # Get cells.
-            cells_imgs, cells_types, bytepos = crop_cells(
+            cells_imgs, cells_types, cells_regions, bytepos = crop_cells(
                 bsv3_file, bytepos=f.tell(), rgb_img=rgb_img, cellnumber=cellnumber
             )
 
             # Get frames.
             frames, statenames, stateitems = bsv3a(
-                bsv3_file, bytepos, cells_imgs, cells_types, is_alpha
+                bsv3_file, bytepos, cells_imgs, cells_types, cells_regions, is_alpha
             )
 
             return (frames, statenames, stateitems, bsv3_set, True)
@@ -61,7 +61,7 @@ def bsv3_parser(bsv3_file):
                 return (None, list(), list(), set(), False)
 
             # Get cells.
-            cells_imgs, cells_types, bytepos = crop_cells(
+            cells_imgs, cells_types, cells_regions, bytepos = crop_cells(
                 bsv3_file,
                 bytepos=f.tell(),
                 rgb_img=rgb_img,
@@ -70,7 +70,7 @@ def bsv3_parser(bsv3_file):
 
             # Get frames.
             frames, statenames, stateitems = bsv3b(
-                bsv3_file, bytepos, cells_imgs, cells_types, is_alpha
+                bsv3_file, bytepos, cells_imgs, cells_types, cells_regions, is_alpha
             )
 
             return (frames, statenames, stateitems, bsv3_set, True)
@@ -79,7 +79,7 @@ def bsv3_parser(bsv3_file):
             return (None, list(), list(), set(), False)
 
 
-def bsv3a(bsv3_file, bytepos, cells_imgs, cells_types, is_alpha):
+def bsv3a(bsv3_file, bytepos, cells_imgs, cells_types, cells_regions, is_alpha):
     with open(bsv3_file, "rb") as f:
         f.seek(bytepos)
 
@@ -92,7 +92,10 @@ def bsv3a(bsv3_file, bytepos, cells_imgs, cells_types, is_alpha):
         b = [np.array([]) for _ in range(blocks)]
         affine_matrix = [np.array([]) for _ in range(blocks)]
         alpha = [np.array([]) for _ in range(blocks)]
-        interp = Interpolate.new("bicubic")
+        interpolations = {
+            "bicubic": Interpolate.new("bicubic"),
+            "nearest": Interpolate.new("nearest"),
+        }
 
         # Read blocks info.
         for i in range(blocks):
@@ -120,6 +123,7 @@ def bsv3a(bsv3_file, bytepos, cells_imgs, cells_types, is_alpha):
 
             # Process subcells.
             for j in range(subcellnumber):
+                interp = "bicubic"
                 index = int.from_bytes(f.read(2), byteorder="little", signed=False)
 
                 # Get top left corner.
@@ -149,6 +153,20 @@ def bsv3a(bsv3_file, bytepos, cells_imgs, cells_types, is_alpha):
                     alpha[i][j] = 255
 
                 subcells_imgs[i][j] = cells_imgs[index].copy()
+
+                # Recrop images that are not the crop kind or are not to be rotated.
+                if (
+                    cells_types[index] != "crop"
+                    or affine_matrix[i][j, 1, 0] == 0
+                    or affine_matrix[i][j, 0, 1] == 0
+                ):
+                    subcells_imgs[i][j] = subcells_imgs[i][j].crop(
+                        cells_regions[index][0],
+                        cells_regions[index][1],
+                        cells_regions[index][2],
+                        cells_regions[index][3],
+                    )
+
                 subcell_canvas = Image.new_from_array(
                     np.zeros(
                         [
@@ -163,23 +181,10 @@ def bsv3a(bsv3_file, bytepos, cells_imgs, cells_types, is_alpha):
                     subcells_imgs[i][j], x=1, y=1, mode="over", premultiplied=False
                 )
 
-                # Resize a little bit cropped cells that are rotated.
-                if (
-                    affine_matrix[i][j, 1, 0] != 0 or affine_matrix[i][j, 0, 1] != 0
-                ) and cells_types[index] == "crop":
-                    subcells_imgs[i][j] = subcells_imgs[i][j].resize(
-                        1
-                        + 4
-                        / np.min(
-                            [subcells_imgs[i][j].width, subcells_imgs[i][j].height]
-                        ),
-                        kernel="nearest",
-                    )
-
                 subcells_imgs[i][j] *= [1, 1, 1, alpha[i][j] / 255]  # type: ignore
                 subcells_imgs[i][j] = subcells_imgs[i][j].affine(  # type: ignore
                     affine_matrix[i][j, ...].flatten().tolist(),
-                    interpolate=interp,
+                    interpolate=interpolations[interp],
                     extend="background",
                 )
 
@@ -217,7 +222,7 @@ def bsv3a(bsv3_file, bytepos, cells_imgs, cells_types, is_alpha):
         return (frames, statenames, stateitems)
 
 
-def bsv3b(bsv3_file, bytepos, cells_imgs, cells_types, is_alpha):
+def bsv3b(bsv3_file, bytepos, cells_imgs, cells_types, cells_regions, is_alpha):
     with open(bsv3_file, "rb") as f:
         f.seek(bytepos)
 
@@ -231,10 +236,14 @@ def bsv3b(bsv3_file, bytepos, cells_imgs, cells_types, is_alpha):
         b = np.zeros((2, subcellnumber), dtype=np.float32)
         affine_matrix = np.array([np.identity(2)] * subcellnumber, dtype=np.float32)
         alpha = np.zeros(subcellnumber, dtype=int)
-        interp = Interpolate.new("bicubic")
+        interpolations = {
+            "bicubic": Interpolate.new("bicubic"),
+            "nearest": Interpolate.new("nearest"),
+        }
 
         # Process subcells.
         for j in range(subcellnumber):
+            interp = "bicubic"
             index = int.from_bytes(f.read(2), byteorder="little", signed=False)
 
             # Get top left corner.
@@ -260,6 +269,20 @@ def bsv3b(bsv3_file, bytepos, cells_imgs, cells_types, is_alpha):
                 alpha[j] = 255
 
             subcells_imgs[j] = cells_imgs[index].copy()
+
+            # Recrop images that are not the crop kind or are not to be rotated.
+            if (
+                cells_types[index] != "crop"
+                or affine_matrix[j, 1, 0] == 0
+                or affine_matrix[j, 0, 1] == 0
+            ):
+                subcells_imgs[j] = subcells_imgs[j].crop(
+                    cells_regions[index][0],
+                    cells_regions[index][1],
+                    cells_regions[index][2],
+                    cells_regions[index][3],
+                )
+
             subcell_canvas = Image.new_from_array(
                 np.zeros(
                     [
@@ -271,25 +294,13 @@ def bsv3b(bsv3_file, bytepos, cells_imgs, cells_types, is_alpha):
                 interpretation="srgb",
             )
             subcells_imgs[j] = subcell_canvas.composite(  # type: ignore
-                subcells_imgs[j],
-                x=1,
-                y=1,
-                mode="over",
+                subcells_imgs[j], x=1, y=1, mode="over", premultiplied=False
             )
-
-            # Resize a little bit cropped cells that are rotated.
-            if (
-                affine_matrix[j, 1, 0] != 0 or affine_matrix[j, 0, 1] != 0
-            ) and cells_types[index] == "crop":
-                subcells_imgs[j] = subcells_imgs[j].resize(
-                    1 + 4 / np.min([subcells_imgs[j].width, subcells_imgs[j].height]),
-                    kernel="nearest",
-                )
 
             subcells_imgs[j] *= [1, 1, 1, alpha[j] / 255]  # type: ignore
             subcells_imgs[j] = subcells_imgs[j].affine(  # type: ignore
                 affine_matrix[j, ...].flatten().tolist(),
-                interpolate=interp,
+                interpolate=interpolations[interp],
                 extend="background",
             )
 
