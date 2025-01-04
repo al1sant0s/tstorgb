@@ -155,10 +155,8 @@ def bsv3a(bsv3_file, bytepos, cells_imgs, cells_types, cells_regions, is_alpha):
                 subcells_imgs[i][j] = cells_imgs[index].copy()
 
                 # Recrop images that are not the crop kind or are not to be rotated.
-                if (
-                    cells_types[index] != "crop"
-                    or affine_matrix[i][j, 1, 0] == 0
-                    or affine_matrix[i][j, 0, 1] == 0
+                if cells_types[index] != "crop" or (
+                    affine_matrix[i][j, 1, 0] == 0 and affine_matrix[i][j, 0, 1] == 0
                 ):
                     subcells_imgs[i][j] = subcells_imgs[i][j].crop(
                         cells_regions[index][0],
@@ -271,10 +269,8 @@ def bsv3b(bsv3_file, bytepos, cells_imgs, cells_types, cells_regions, is_alpha):
             subcells_imgs[j] = cells_imgs[index].copy()
 
             # Recrop images that are not the crop kind or are not to be rotated.
-            if (
-                cells_types[index] != "crop"
-                or affine_matrix[j, 1, 0] == 0
-                or affine_matrix[j, 0, 1] == 0
+            if cells_types[index] != "crop" or (
+                affine_matrix[j, 1, 0] == 0 and affine_matrix[j, 0, 1] == 0
             ):
                 subcells_imgs[j] = subcells_imgs[j].crop(
                     cells_regions[index][0],
