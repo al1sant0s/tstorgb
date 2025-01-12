@@ -1,5 +1,5 @@
 import numpy as np
-from pyvips import Image
+from pyvips import Image, Interpretation
 
 
 def crop_cells(bsv3_file, bytepos, rgb_img, cellnumber):
@@ -7,18 +7,14 @@ def crop_cells(bsv3_file, bytepos, rgb_img, cellnumber):
         f.seek(bytepos)
 
         cells_imgs = [Image.black(1, 1) for _ in range(cellnumber)]  # type: ignore
-        cells_types = ["normal" for _ in range(cellnumber)]
-        cells_regions = [np.zeros(4, dtype=int) for _ in range(cellnumber)]
-        img_array = rgb_img.numpy()
+        cells_names = ["" for _ in range(cellnumber)]
 
         # Get cells.
         for i in range(cellnumber):
             skip = int.from_bytes(f.read(1), byteorder="little", signed=False)
             cellname = f.read(skip).decode("utf8")[0:-1].lower()
 
-            # Determine cell type for later operations.
-            if "crop" in cellname:
-                cells_types[i] = "crop"
+            cells_names[i] = cellname
 
             # Read x, y, width and height.
             regions = np.frombuffer(f.read(8), dtype=np.uint16).reshape(4)
@@ -33,6 +29,8 @@ def crop_cells(bsv3_file, bytepos, rgb_img, cellnumber):
             dy = 0
             dw = 0
             dh = 0
+            img_array = rgb_img.numpy()
+
             if x - 1 >= 0 and np.any(img_array[y : y + h, x - 1, :]) is np.True_:
                 dx -= 1
                 dw += 1
@@ -53,9 +51,9 @@ def crop_cells(bsv3_file, bytepos, rgb_img, cellnumber):
                 dh += 1
 
             cells_imgs[i] = rgb_img.crop(x + dx, y + dy, w + dw, h + dh)
-            cells_regions[i] = np.array([-dx, -dy, w, h]).reshape(4)
+            # cells_imgs[i] = rgb_img.crop(x, y, w, h)
 
-        return (cells_imgs, cells_types, cells_regions, f.tell())
+        return (cells_imgs, cells_names, f.tell())
 
 
 def get_states(bsv3_file, bytepos):
@@ -79,16 +77,127 @@ def get_states(bsv3_file, bytepos):
         return (statenames, stateitems)
 
 
-def frame_iterator(canvas_img, subcells_imgs, a):
+def frame_iterator(canvas_img, subcells_imgs, subcells_names, subcells_layers, tlc):
     for i, subcells in zip(range(len(subcells_imgs)), subcells_imgs):
         if len(subcells) == 0:
             yield canvas_img
             continue
 
-        yield canvas_img.composite(  # type: ignore
-            list(reversed(subcells)),
+        group_layers = set()
+        compose_imgs = []
+        compose_x = []
+        compose_y = []
+        for j, subcell_img in zip(reversed(range(len(subcells))), reversed(subcells)):
+            x = int(tlc[i][0, j])
+            y = int(tlc[i][1, j])
+            subcellname_split = subcells_names[i][j].split("_crop", maxsplit=1)
+            subcellname = subcellname_split[0]
+            if subcellname in subcells_layers[i]:
+                if subcellname not in group_layers:
+                    group_layers.add(subcellname)
+                    compose_imgs.append(
+                        canvas_img.copy().composite2(subcell_img, "over", x=x, y=y)
+                    )
+                    compose_x.append(0)
+                    compose_y.append(0)
+                else:
+                    base_mask = compose_imgs[-1] > 0
+                    overlay_mask = subcell_img > 0
+
+                    compose_imgs[-1] = base_mask.composite(
+                        [overlay_mask, compose_imgs[-1], subcell_img],
+                        mode=["dest-out", "in", "over"],
+                        x=[x, 0, x],
+                        y=[y, 0, y],
+                    )
+            else:
+                compose_imgs.append(subcell_img)
+                compose_x.append(x)
+                compose_y.append(y)
+
+        yield canvas_img.composite(
+            compose_imgs,
             mode="over",
-            x=list(reversed(np.array(a[i][0, ...], dtype=int))),
-            y=list(reversed(np.array(a[i][1, ...], dtype=int))),
+            x=compose_x,
+            y=compose_y,
             premultiplied=False,
         )
+
+        # if len(subcells) == 0:
+        #    yield canvas_img
+        #    continue
+
+        ## Multilayer processing is very time consuming. This will drastically increase rendering time for each frame.
+        # elif multilayer[i]:
+        #    previous = ""
+        #    hold_imgs = list()
+        #    for j, subcell_img in zip(
+        #        reversed(range(len(subcells))), reversed(subcells)
+        #    ):
+        #        subcellname_split = subcells_names[i][j].split("_crop", maxsplit=1)
+        #        subcellname = subcellname_split[0]
+
+        #        x = int(tlc[i][0, j])
+        #        y = int(tlc[i][1, j])
+
+        #        if subcellname != previous:
+        #            hold_imgs.append(
+        #                canvas_img.composite2(subcell_img, "over", x=x, y=y)
+        #            )
+        #        else:
+        #            base_mask = hold_imgs[-1] > 0
+        #            overlay_mask = subcell_img > 0
+
+        #            hold_imgs[-1] = base_mask.composite(
+        #                [overlay_mask, hold_imgs[-1], subcell_img],
+        #                mode=["dest-out", "in", "over"],
+        #                x=[x, 0, x],
+        #                y=[y, 0, y],
+        #            )
+        #        previous = subcellname
+
+        #    coords = [0 for _ in range(len(hold_imgs))]
+        #    yield canvas_img.composite(hold_imgs, "over", x=coords, y=coords)
+
+        # else:
+        #    yield canvas_img.composite(  # type: ignore
+        #        list(reversed(subcells)),
+        #        mode="over",
+        #        x=list(reversed(np.array(tlc[i][0, ...], dtype=int))),
+        #        y=list(reversed(np.array(tlc[i][1, ...], dtype=int))),
+        #        premultiplied=False,
+        #    )
+
+        # if subcellname != previous or subcellname not in group_layers.keys():
+        #    group_layers[subcellname] = canvas_img.composite2(
+        #        subcell_img, "over", x=x, y=y
+        #    )
+
+        # else:
+        #    base_mask = group_layers[subcellname] > 0
+        #    overlay_mask = subcell_img > 0
+
+        #    group_layers[subcellname] = base_mask.composite(
+        #        [overlay_mask, group_layers[subcellname], subcell_img],
+        #        mode=["dest-out", "in", "over"],
+        #        x=[x, 0, x],
+        #        y=[y, 0, y],
+        #    )
+        # previous = subcellname
+
+        # layers = [layer for layer in group_layers.values()]
+        # coords = [0 for _ in range(len(layers))]
+        # yield canvas_img.composite(
+        #    layers,
+        #    mode="over",
+        #    x=coords,
+        #    y=coords,
+        # )
+
+        # yield canvas_img.composite(  # type: ignore
+        #    list(reversed(subcells)),
+        #    mode="over",
+        #    x=list(reversed(np.array(tlc[i][0, ...], dtype=int))),
+        #    y=list(reversed(np.array(tlc[i][1, ...], dtype=int))),
+        #    premultiplied=False,
+        # )

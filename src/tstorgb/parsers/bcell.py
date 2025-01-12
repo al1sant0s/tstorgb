@@ -30,8 +30,8 @@ def bcell_10(bcell_file):
 
         subcells_imgs = [list() for _ in range(blocks)]
         bytepos = [0 for _ in range(blocks)]
-        a = [np.zeros((2, 1), dtype=int) for _ in range(blocks)]
-        b = [np.zeros((2, 1), dtype=int) for _ in range(blocks)]
+        tlc = [np.zeros((2, 1), dtype=int) for _ in range(blocks)]
+        brc = [np.zeros((2, 1), dtype=int) for _ in range(blocks)]
         subcells_dim = [np.zeros((2, 1), dtype=int) for _ in range(blocks)]
 
         # Read blocks info.
@@ -49,7 +49,9 @@ def bcell_10(bcell_file):
             # So it gets stored but is unused in this code.
             unknown = np.frombuffer(f.read(4), dtype=np.float32)[0]
 
-            a[i][..., 0] = np.frombuffer(f.read(4), dtype=np.int16, count=2).transpose()
+            tlc[i][..., 0] = np.frombuffer(
+                f.read(4), dtype=np.int16, count=2
+            ).transpose()
 
             # Ignore extra byte.
             f.read(1)
@@ -65,10 +67,10 @@ def bcell_10(bcell_file):
             subcells_dim[i][0, 0] = subcells_imgs[i][0].width
             subcells_dim[i][1, 0] = subcells_imgs[i][0].height
 
-            b[i][..., 0] = a[i][..., 0] + subcells_dim[i][..., 0]
+            brc[i][..., 0] = tlc[i][..., 0] + subcells_dim[i][..., 0]
 
-    c = deepcopy(np.hstack(a))
-    d = deepcopy(np.hstack(b))
+    c = deepcopy(np.hstack(tlc))
+    d = deepcopy(np.hstack(brc))
     c.sort()
     d.sort()
 
@@ -78,10 +80,10 @@ def bcell_10(bcell_file):
     )
 
     # Correct coordinates.
-    a = [a[i] - np.array(c[..., 0]).reshape(2, 1) for i in range(blocks)]
+    tlc = [tlc[i] - np.array(c[..., 0]).reshape(2, 1) for i in range(blocks)]
 
     # Generate the frames.
-    frame_iterator = generate_frames(canvas_img, subcells_imgs, a)
+    frame_iterator = generate_frames(canvas_img, subcells_imgs, tlc)
 
     return (frame_iterator, blocks, set(), True)
 
@@ -98,8 +100,8 @@ def bcell_11(bcell_file):
 
         frames = ["" for _ in range(blocks)]
         subcells_imgs = [list() for _ in range(blocks)]
-        a = [np.zeros((2, 1), dtype=int) for _ in range(blocks)]
-        b = [np.zeros((2, 1), dtype=int) for _ in range(blocks)]
+        tlc = [np.zeros((2, 1), dtype=int) for _ in range(blocks)]
+        brc = [np.zeros((2, 1), dtype=int) for _ in range(blocks)]
         subcells_dim = [np.zeros((2, 1), dtype=int) for _ in range(blocks)]
 
         # Read blocks info.
@@ -112,7 +114,9 @@ def bcell_11(bcell_file):
             # So it gets stored but is unused in this code.
             unknown = np.frombuffer(f.read(4), dtype=np.float32)[0]
 
-            a[i][..., 0] = np.frombuffer(f.read(4), dtype=np.int16, count=2).transpose()
+            tlc[i][..., 0] = np.frombuffer(
+                f.read(4), dtype=np.int16, count=2
+            ).transpose()
 
             # Ignore extra byte.
             f.read(1)
@@ -130,10 +134,10 @@ def bcell_11(bcell_file):
             subcells_dim[i][0, 0] = subcells_imgs[i][0].width
             subcells_dim[i][1, 0] = subcells_imgs[i][0].height
 
-            b[i][..., 0] = a[i][..., 0] + subcells_dim[i][..., 0]
+            brc[i][..., 0] = tlc[i][..., 0] + subcells_dim[i][..., 0]
 
-    c = deepcopy(np.hstack(a))
-    d = deepcopy(np.hstack(b))
+    c = deepcopy(np.hstack(tlc))
+    d = deepcopy(np.hstack(brc))
     c.sort()
     d.sort()
 
@@ -143,10 +147,10 @@ def bcell_11(bcell_file):
     )
 
     # Correct coordinates.
-    a = [a[i] - np.array(c[..., 0]).reshape(2, 1) for i in range(blocks)]
+    tlc = [tlc[i] - np.array(c[..., 0]).reshape(2, 1) for i in range(blocks)]
 
     # Generate the frames.
-    frame_iterator = generate_frames(canvas_img, subcells_imgs, a)
+    frame_iterator = generate_frames(canvas_img, subcells_imgs, tlc)
 
     return (frame_iterator, blocks, bcell_set, True)
 
@@ -172,11 +176,11 @@ def bcell_13(bcell_file, disable_shadows=False):
         # frame data.
         frames = [list() for _ in range(blocks)]
         subcells_imgs = deepcopy(frames)
-        a = [np.array([]) for _ in range(blocks)]
-        b = deepcopy(a)
-        subcells_dim = deepcopy(a)
-        affine_matrix = deepcopy(a)
-        alpha = deepcopy(a)
+        tlc = [np.array([]) for _ in range(blocks)]
+        brc = deepcopy(tlc)
+        subcells_dim = deepcopy(tlc)
+        affine_matrix = deepcopy(tlc)
+        alpha = deepcopy(tlc)
         interp = Interpolate.new("bicubic")
 
         # Read blocks info.
@@ -192,8 +196,8 @@ def bcell_13(bcell_file, disable_shadows=False):
             f.seek(start)
 
             # Shape the arrays.
-            a[i] = np.zeros((2, subcells[i]), dtype=np.float32)
-            b[i] = np.zeros((2, subcells[i]), dtype=np.float32)
+            tlc[i] = np.zeros((2, subcells[i]), dtype=np.float32)
+            brc[i] = np.zeros((2, subcells[i]), dtype=np.float32)
             subcells_dim[i] = np.zeros((2, subcells[i]), dtype=np.float32)
             affine_matrix[i] = np.array(
                 [np.identity(2)] * subcells[i], dtype=np.float32
@@ -208,7 +212,7 @@ def bcell_13(bcell_file, disable_shadows=False):
             for j in range(subcells[i]):
                 if j == 0:
                     # Get first subcell data.
-                    a[i][..., 0] = np.frombuffer(
+                    tlc[i][..., 0] = np.frombuffer(
                         f.read(4), dtype=np.int16, count=2
                     ).transpose()
                     f.read(2)  # It's already been read.
@@ -240,7 +244,7 @@ def bcell_13(bcell_file, disable_shadows=False):
                         continue
 
                     # Get top left corner.
-                    a[i][..., j] = np.frombuffer(
+                    tlc[i][..., j] = np.frombuffer(
                         f.read(8), dtype=np.float32, count=2
                     ).transpose()
 
@@ -273,22 +277,22 @@ def bcell_13(bcell_file, disable_shadows=False):
 
                 # Adjust coordinates accordingly to the affine matrix.
                 if np.linalg.det(affine_matrix[i][j, ...]) > 0:
-                    a[i][0, j] = np.round(a[i][0, j])
-                    a[i][1, j] = np.floor(a[i][1, j])
+                    tlc[i][0, j] = np.round(tlc[i][0, j])
+                    tlc[i][1, j] = np.floor(tlc[i][1, j])
                 else:
-                    a[i][0, j] = np.floor(a[i][0, j])
-                    a[i][1, j] = np.floor(a[i][1, j])
+                    tlc[i][0, j] = np.floor(tlc[i][0, j])
+                    tlc[i][1, j] = np.floor(tlc[i][1, j])
 
                     # Position shadows correctly according to its determinant signal. [positive -> from left side; negative <- from right side]
-                    a[i][0, j] -= subcells_dim[i][0, j]
+                    tlc[i][0, j] -= subcells_dim[i][0, j]
 
                 # Get bottom right corner.
-                b[i][..., j] = a[i][..., j] + subcells_dim[i][..., j]
+                brc[i][..., j] = tlc[i][..., j] + subcells_dim[i][..., j]
 
         # Get canvas dimensions.
         c = np.array(
             [
-                a[i][..., j]
+                tlc[i][..., j]
                 for i in range(blocks)
                 for j in range(subcells[i])
                 if frames[i][j] != "null"
@@ -296,7 +300,7 @@ def bcell_13(bcell_file, disable_shadows=False):
         ).transpose()
         d = np.array(
             [
-                b[i][..., j]
+                brc[i][..., j]
                 for i in range(blocks)
                 for j in range(subcells[i])
                 if frames[i][j] != "null"
@@ -311,9 +315,9 @@ def bcell_13(bcell_file, disable_shadows=False):
         )
 
         # Correct coordinates.
-        a = [a[i] - np.array(c[..., 0]).reshape(2, 1) for i in range(blocks)]
+        tlc = [tlc[i] - np.array(c[..., 0]).reshape(2, 1) for i in range(blocks)]
 
         # Generate the frames.
-        frame_iterator = generate_frames(canvas_img, subcells_imgs, a)
+        frame_iterator = generate_frames(canvas_img, subcells_imgs, tlc)
 
         return (frame_iterator, blocks, bcell_set, True)
