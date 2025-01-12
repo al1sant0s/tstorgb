@@ -1,5 +1,5 @@
 import numpy as np
-from pyvips import Image, Interpretation
+from pyvips import Image
 
 
 def crop_cells(bsv3_file, bytepos, rgb_img, cellnumber):
@@ -7,6 +7,7 @@ def crop_cells(bsv3_file, bytepos, rgb_img, cellnumber):
         f.seek(bytepos)
 
         cells_imgs = [Image.black(1, 1) for _ in range(cellnumber)]  # type: ignore
+        cells_subregions = [np.array([]) for _ in range(cellnumber)]
         cells_names = ["" for _ in range(cellnumber)]
 
         # Get cells.
@@ -51,9 +52,9 @@ def crop_cells(bsv3_file, bytepos, rgb_img, cellnumber):
                 dh += 1
 
             cells_imgs[i] = rgb_img.crop(x + dx, y + dy, w + dw, h + dh)
-            # cells_imgs[i] = rgb_img.crop(x, y, w, h)
+            cells_subregions[i] = np.array([-dx, -dy, w, h], dtype=int)
 
-        return (cells_imgs, cells_names, f.tell())
+        return (cells_imgs, cells_subregions, cells_names, f.tell())
 
 
 def get_states(bsv3_file, bytepos):
@@ -122,82 +123,3 @@ def frame_iterator(canvas_img, subcells_imgs, subcells_names, subcells_layers, t
             y=compose_y,
             premultiplied=False,
         )
-
-        # if len(subcells) == 0:
-        #    yield canvas_img
-        #    continue
-
-        ## Multilayer processing is very time consuming. This will drastically increase rendering time for each frame.
-        # elif multilayer[i]:
-        #    previous = ""
-        #    hold_imgs = list()
-        #    for j, subcell_img in zip(
-        #        reversed(range(len(subcells))), reversed(subcells)
-        #    ):
-        #        subcellname_split = subcells_names[i][j].split("_crop", maxsplit=1)
-        #        subcellname = subcellname_split[0]
-
-        #        x = int(tlc[i][0, j])
-        #        y = int(tlc[i][1, j])
-
-        #        if subcellname != previous:
-        #            hold_imgs.append(
-        #                canvas_img.composite2(subcell_img, "over", x=x, y=y)
-        #            )
-        #        else:
-        #            base_mask = hold_imgs[-1] > 0
-        #            overlay_mask = subcell_img > 0
-
-        #            hold_imgs[-1] = base_mask.composite(
-        #                [overlay_mask, hold_imgs[-1], subcell_img],
-        #                mode=["dest-out", "in", "over"],
-        #                x=[x, 0, x],
-        #                y=[y, 0, y],
-        #            )
-        #        previous = subcellname
-
-        #    coords = [0 for _ in range(len(hold_imgs))]
-        #    yield canvas_img.composite(hold_imgs, "over", x=coords, y=coords)
-
-        # else:
-        #    yield canvas_img.composite(  # type: ignore
-        #        list(reversed(subcells)),
-        #        mode="over",
-        #        x=list(reversed(np.array(tlc[i][0, ...], dtype=int))),
-        #        y=list(reversed(np.array(tlc[i][1, ...], dtype=int))),
-        #        premultiplied=False,
-        #    )
-
-        # if subcellname != previous or subcellname not in group_layers.keys():
-        #    group_layers[subcellname] = canvas_img.composite2(
-        #        subcell_img, "over", x=x, y=y
-        #    )
-
-        # else:
-        #    base_mask = group_layers[subcellname] > 0
-        #    overlay_mask = subcell_img > 0
-
-        #    group_layers[subcellname] = base_mask.composite(
-        #        [overlay_mask, group_layers[subcellname], subcell_img],
-        #        mode=["dest-out", "in", "over"],
-        #        x=[x, 0, x],
-        #        y=[y, 0, y],
-        #    )
-        # previous = subcellname
-
-        # layers = [layer for layer in group_layers.values()]
-        # coords = [0 for _ in range(len(layers))]
-        # yield canvas_img.composite(
-        #    layers,
-        #    mode="over",
-        #    x=coords,
-        #    y=coords,
-        # )
-
-        # yield canvas_img.composite(  # type: ignore
-        #    list(reversed(subcells)),
-        #    mode="over",
-        #    x=list(reversed(np.array(tlc[i][0, ...], dtype=int))),
-        #    y=list(reversed(np.array(tlc[i][1, ...], dtype=int))),
-        #    premultiplied=False,
-        # )

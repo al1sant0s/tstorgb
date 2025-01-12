@@ -35,13 +35,13 @@ def bsv3_parser(bsv3_file):
                 return (None, list(), list(), set(), False)
 
             # Get cells.
-            cells_imgs, cells_names, bytepos = crop_cells(
+            cells_imgs, cells_subregions, cells_names, bytepos = crop_cells(
                 bsv3_file, bytepos=f.tell(), rgb_img=rgb_img, cellnumber=cellnumber
             )
 
             # Get frames.
             frames, statenames, stateitems = bsv3a(
-                bsv3_file, bytepos, cells_imgs, cells_names, is_alpha
+                bsv3_file, bytepos, cells_imgs, cells_subregions, cells_names, is_alpha
             )
 
             return (frames, statenames, stateitems, bsv3_set, True)
@@ -61,7 +61,7 @@ def bsv3_parser(bsv3_file):
                 return (None, list(), list(), set(), False)
 
             # Get cells.
-            cells_imgs, cells_names, bytepos = crop_cells(
+            cells_imgs, cells_subregions, cells_names, bytepos = crop_cells(
                 bsv3_file,
                 bytepos=f.tell(),
                 rgb_img=rgb_img,
@@ -70,7 +70,7 @@ def bsv3_parser(bsv3_file):
 
             # Get frames.
             frames, statenames, stateitems = bsv3b(
-                bsv3_file, bytepos, cells_imgs, cells_names, is_alpha
+                bsv3_file, bytepos, cells_imgs, cells_subregions, cells_names, is_alpha
             )
 
             return (frames, statenames, stateitems, bsv3_set, True)
@@ -79,7 +79,7 @@ def bsv3_parser(bsv3_file):
             return (None, list(), list(), set(), False)
 
 
-def bsv3a(bsv3_file, bytepos, cells_imgs, cells_names, is_alpha):
+def bsv3a(bsv3_file, bytepos, cells_imgs, cells_subregions, cells_names, is_alpha):
     with open(bsv3_file, "rb") as f:
         f.seek(bytepos)
 
@@ -157,28 +157,31 @@ def bsv3a(bsv3_file, bytepos, cells_imgs, cells_names, is_alpha):
 
                 # Adjust coordinates.
                 if np.linalg.det(affine_matrix[i][j, ...]) > 0:
-                    tlc[i][0, j] = np.round(tlc[i][0, j])
-                    tlc[i][1, j] = np.floor(tlc[i][1, j])
+                    tlc[i][0, j] = np.round(tlc[i][0, j]) - cells_subregions[index][0]
                 else:
-                    tlc[i][0, j] = np.floor(tlc[i][0, j] + 0.95)
-                    tlc[i][1, j] = np.floor(tlc[i][1, j])
+                    tlc[i][0, j] = np.floor(tlc[i][0, j])
+
+                tlc[i][1, j] = np.floor(tlc[i][1, j]) - cells_subregions[index][1]
 
                 # Decide if multilayer processing should be done when rendering the frames.
                 # Multilayer is very slow but it prevents alpha overlapping (brighter pixels in the intersections).
-                # Only performs if there's at least one semitranslucent cropped subcell and/or with rotation in the frame.
-                if "_crop" in cells_names[index] and (
-                    affine_matrix[i][j, 1, 0] != 0
-                    or affine_matrix[i][j, 0, 1] != 0
-                    or 20
-                    < cells_imgs[index][3].getpoint(
-                        cells_imgs[index].width / 2, cells_imgs[index].height / 2
-                    )[0]
-                    < 230
-                    or subcells_imgs[i][j][3].maxpos()[0] < 230
-                ):
-                    subcells_layers[i].add(
-                        cells_names[index].split("_crop", maxsplit=1)[0]
-                    )
+                # Only performs if there's at least one semitranslucent cropped subcell.
+                if "_crop" in cells_names[index]:
+                    if (
+                        subcells_imgs[i][j][3].maxpos()[0] < 230
+                        or cells_imgs[index]
+                        .crop(
+                            0.4 * cells_imgs[index].width,
+                            0.4 * cells_imgs[index].height,
+                            0.2 * cells_imgs[index].width,
+                            0.2 * cells_imgs[index].height,
+                        )[3]
+                        .maxpos()[0]
+                        < 230
+                    ):
+                        subcells_layers[i].add(
+                            cells_names[index].split("_crop", maxsplit=1)[0]
+                        )
                     subcells_imgs[i][j] = subcells_imgs[i][j].affine(
                         affine_matrix[i][j, ...].flatten().tolist(), extend="copy"
                     )
@@ -223,7 +226,7 @@ def bsv3a(bsv3_file, bytepos, cells_imgs, cells_names, is_alpha):
         return (frames, statenames, stateitems)
 
 
-def bsv3b(bsv3_file, bytepos, cells_imgs, cells_names, is_alpha):
+def bsv3b(bsv3_file, bytepos, cells_imgs, cells_subregions, cells_names, is_alpha):
     with open(bsv3_file, "rb") as f:
         f.seek(bytepos)
 
@@ -275,26 +278,31 @@ def bsv3b(bsv3_file, bytepos, cells_imgs, cells_names, is_alpha):
 
             # Adjust coordinates.
             if np.linalg.det(affine_matrix[j, ...]) > 0:
-                tlc[0, j] = np.round(tlc[0, j])
-                tlc[1, j] = np.floor(tlc[1, j])
+                tlc[0, j] = np.round(tlc[0, j]) - cells_subregions[index][0]
             else:
-                tlc[0, j] = np.floor(tlc[0, j] + 0.95)
-                tlc[1, j] = np.floor(tlc[1, j])
+                tlc[0, j] = np.floor(tlc[0, j])
+
+            tlc[1, j] = np.floor(tlc[1, j]) - cells_subregions[index][1]
 
             # Decide if multilayer processing should be done when rendering the frames.
             # Multilayer is very slow but it prevents alpha overlapping (brighter pixels in the intersections).
-            # Only performs if there's at least one semitranslucent cropped subcell and/or with rotation in the frame.
-            if "_crop" in cells_names[index] and (
-                affine_matrix[j, 1, 0] != 0
-                or affine_matrix[j, 0, 1] != 0
-                or 20
-                < cells_imgs[index][3].getpoint(
-                    cells_imgs[index].width / 2, cells_imgs[index].height / 2
-                )[0]
-                < 230
-                or subcells_imgs[j][3].maxpos()[0] < 230
-            ):
-                subcells_layers.add(cells_names[index].split("_crop", maxsplit=1)[0])
+            # Only performs if there's at least one semitranslucent cropped subcell.
+            if "_crop" in cells_names[index]:
+                if (
+                    subcells_imgs[j][3].maxpos()[0] < 230
+                    or cells_imgs[index]
+                    .crop(
+                        0.4 * cells_imgs[index].width,
+                        0.4 * cells_imgs[index].height,
+                        0.2 * cells_imgs[index].width,
+                        0.2 * cells_imgs[index].height,
+                    )[3]
+                    .maxpos()[0]
+                    < 230
+                ):
+                    subcells_layers.add(
+                        cells_names[index].split("_crop", maxsplit=1)[0]
+                    )
                 subcells_imgs[j] = subcells_imgs[j].affine(
                     affine_matrix[j, ...].flatten().tolist(), extend="copy"
                 )
