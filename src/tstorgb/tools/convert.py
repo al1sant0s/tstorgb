@@ -1,7 +1,7 @@
 import argparse
 from pathlib import Path
 from zipfile import ZipFile, is_zipfile
-from pyvips import Image, GValue
+from pyvips import Image, GValue, cache_set_max
 from tstorgb.parsers import bcell_parser, rgb_parser, bsv3_parser
 from tstorgb.tools.progress import report_progress
 
@@ -95,6 +95,9 @@ def main():
 
     args = parser.parse_args()
     directories = [Path(item) for item in args.input_dir]
+
+    # Set libvips cache in order to lower memory usage.
+    cache_set_max(0)
 
     # Help with the progress report.
     n = 0

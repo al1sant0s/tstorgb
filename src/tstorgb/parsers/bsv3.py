@@ -169,14 +169,15 @@ def bsv3a(bsv3_file, bytepos, cells_imgs, cells_subregions, cells_names, is_alph
                 if "_crop" in cells_names[index]:
                     if (
                         subcells_imgs[i][j][3].maxpos()[0] < 230
-                        or cells_imgs[index]
+                        or 0
+                        < cells_imgs[index]
                         .crop(
                             0.4 * cells_imgs[index].width,
                             0.4 * cells_imgs[index].height,
-                            0.2 * cells_imgs[index].width,
-                            0.2 * cells_imgs[index].height,
+                            0.2 * cells_imgs[index].width + 1,
+                            0.2 * cells_imgs[index].height + 1,
                         )[3]
-                        .maxpos()[0]
+                        .minpos()[0]
                         < 230
                     ):
                         subcells_layers[i].add(
@@ -290,14 +291,15 @@ def bsv3b(bsv3_file, bytepos, cells_imgs, cells_subregions, cells_names, is_alph
             if "_crop" in cells_names[index]:
                 if (
                     subcells_imgs[j][3].maxpos()[0] < 230
-                    or cells_imgs[index]
+                    or 0
+                    < cells_imgs[index]
                     .crop(
                         0.4 * cells_imgs[index].width,
                         0.4 * cells_imgs[index].height,
-                        0.2 * cells_imgs[index].width,
-                        0.2 * cells_imgs[index].height,
+                        0.2 * cells_imgs[index].width + 1,
+                        0.2 * cells_imgs[index].height + 1,
                     )[3]
-                    .maxpos()[0]
+                    .minpos()[0]
                     < 230
                 ):
                     subcells_layers.add(
