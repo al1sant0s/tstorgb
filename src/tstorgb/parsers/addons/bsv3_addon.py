@@ -52,7 +52,7 @@ def crop_cells(bsv3_file, bytepos, rgb_img, cellnumber):
                 dh += 1
 
             cells_imgs[i] = rgb_img.crop(x + dx, y + dy, w + dw, h + dh)
-            cells_subregions[i] = np.array([-dx, -dy, w, h], dtype=int)
+            cells_subregions[i] = np.array([-dx, -dy, dw, dh], dtype=int)
 
         return (cells_imgs, cells_subregions, cells_names, f.tell())
 

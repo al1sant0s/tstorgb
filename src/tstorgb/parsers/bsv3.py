@@ -159,7 +159,7 @@ def bsv3a(bsv3_file, bytepos, cells_imgs, cells_subregions, cells_names, is_alph
                 if np.linalg.det(affine_matrix[i][j, ...]) > 0:
                     tlc[i][0, j] = np.round(tlc[i][0, j]) - cells_subregions[index][0]
                 else:
-                    tlc[i][0, j] = np.floor(tlc[i][0, j])
+                    tlc[i][0, j] = np.round(tlc[i][0, j]) - cells_subregions[index][2] + cells_subregions[index][0]
 
                 tlc[i][1, j] = np.floor(tlc[i][1, j]) - cells_subregions[index][1]
 
@@ -168,7 +168,7 @@ def bsv3a(bsv3_file, bytepos, cells_imgs, cells_subregions, cells_names, is_alph
                 # Only performs if there's at least one semitranslucent cropped subcell.
                 if "_crop" in cells_names[index]:
                     if (
-                        subcells_imgs[i][j][3].maxpos()[0] < 230
+                        subcells_imgs[i][j][3].maxpos()[0] < 245
                         or 0
                         < cells_imgs[index]
                         .crop(
@@ -178,7 +178,7 @@ def bsv3a(bsv3_file, bytepos, cells_imgs, cells_subregions, cells_names, is_alph
                             0.2 * cells_imgs[index].height + 1,
                         )[3]
                         .minpos()[0]
-                        < 230
+                        < 245
                     ):
                         subcells_layers[i].add(
                             cells_names[index].split("_crop", maxsplit=1)[0]
@@ -281,7 +281,7 @@ def bsv3b(bsv3_file, bytepos, cells_imgs, cells_subregions, cells_names, is_alph
             if np.linalg.det(affine_matrix[j, ...]) > 0:
                 tlc[0, j] = np.round(tlc[0, j]) - cells_subregions[index][0]
             else:
-                tlc[0, j] = np.floor(tlc[0, j])
+                tlc[0, j] = np.round(tlc[0, j]) - cells_subregions[index][2] + cells_subregions[index][0]
 
             tlc[1, j] = np.floor(tlc[1, j]) - cells_subregions[index][1]
 
@@ -290,7 +290,7 @@ def bsv3b(bsv3_file, bytepos, cells_imgs, cells_subregions, cells_names, is_alph
             # Only performs if there's at least one semitranslucent cropped subcell.
             if "_crop" in cells_names[index]:
                 if (
-                    subcells_imgs[j][3].maxpos()[0] < 230
+                    subcells_imgs[j][3].maxpos()[0] < 245
                     or 0
                     < cells_imgs[index]
                     .crop(
@@ -300,7 +300,7 @@ def bsv3b(bsv3_file, bytepos, cells_imgs, cells_subregions, cells_names, is_alph
                         0.2 * cells_imgs[index].height + 1,
                     )[3]
                     .minpos()[0]
-                    < 230
+                    < 245
                 ):
                     subcells_layers.add(
                         cells_names[index].split("_crop", maxsplit=1)[0]
