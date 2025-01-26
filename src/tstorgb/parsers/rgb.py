@@ -21,6 +21,9 @@ def rgb_parser(file, byte_seek=0):
                     pixel_data[i, j, 1] = ((rgba_bits >> 8) & 15) * 255 / 15  # Green
                     pixel_data[i, j, 2] = ((rgba_bits >> 4) & 15) * 255 / 15  # Blue
                     pixel_data[i, j, 3] = ((rgba_bits >> 0) & 15) * 255 / 15  # Alpha
+
+            # Get base image
+            return Image.new_from_array(pixel_data, interpretation="srgb").unpremultiply() # type: ignore
         elif check == 0:
             for i in range(height):
                 for j in range(width):
@@ -34,9 +37,9 @@ def rgb_parser(file, byte_seek=0):
                     pixel_data[i, j, 3] = int.from_bytes(
                         f.read(1), signed=False
                     )  # Alpha
+
+            # Get base image
+            return Image.new_from_array(pixel_data, interpretation="srgb") # type: ignore
         else:
             # Unsupported or invalid file.
             return False
-
-        # Get base image
-        return Image.new_from_array(pixel_data, interpretation="srgb").unpremultiply()  # type: ignore
