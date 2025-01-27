@@ -21,13 +21,14 @@ If you don't set the PATH environment variable correctly, the tool will not find
 You'll also need to install [**python**](https://www.python.org/downloads/)
 and [**git**](https://git-scm.com/downloads) if you don't already have them installed in your system.
 
-With everything ready, run either of the following commands in the command line, according to your OS:
+With everything ready, run either of the following commands in the command-line interface, according to your OS:
 
+* Windows installation command.
 ```
-# Windows installation command.
 python -m pip install tstorgb@git+https://github.com/al1sant0s/tstorgb
-
-# Linux installation command.
+```
+* Linux installation command.
+```
 python3 -m pip install tstorgb@git+https://github.com/al1sant0s/tstorgb
 ```
 
