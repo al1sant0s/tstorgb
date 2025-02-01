@@ -11,9 +11,23 @@ It uses [**libvips**](https://www.libvips.org/) to perform the conversions.
 
 ## Installation
 
-First, make sure you install [**libvips**](https://www.libvips.org/install.html) in your system. Then, run the
-following command in the command line:
+First, make sure you install [**libvips**](https://www.libvips.org/install.html) in your system.
 
+> Attention, windows users!
+> 
+> When downloading libvips make sure to update the [**PATH environment variable**](https://learn.microsoft.com/en-us/previous-versions/office/developer/sharepoint-2010/ee537574(v=office.14)) to point to the **vips-x.y.z/bin** directory (remember you have to specify the full path). That is after you unzip the downloaded file as instructed in the installation page.
+If you don't set the PATH environment variable correctly, the tool will not find the required dlls and thus it won't work.
+
+You'll also need to install [**python**](https://www.python.org/downloads/)
+and [**git**](https://git-scm.com/downloads) if you don't already have them installed in your system.
+
+With everything ready, run either of the following commands in the command-line interface, according to your OS:
+
+* Windows installation command.
+```
+python -m pip install tstorgb@git+https://github.com/al1sant0s/tstorgb
+```
+* Linux installation command.
 ```
 python3 -m pip install tstorgb@git+https://github.com/al1sant0s/tstorgb
 ```
