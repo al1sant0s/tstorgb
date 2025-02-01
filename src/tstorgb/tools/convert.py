@@ -61,7 +61,7 @@ def main():
         "--output_extension",
         help="""
         Image format used for the exported images.
-        You can choose between most of libvips supported image formats like png, webp, tiff, jpg, etc.
+        You can choose between most of libvips supported image formats like png, webp, jpg, etc.
         Check libvips documentation for more info about the image formats you can use.
         """,
         default="png",
@@ -130,7 +130,11 @@ def main():
     )
 
     if total == 0:
-        raise Exception("No rgb/bcell files found in the specified directories.")
+        print("[No file(s) found!]\n\n")
+        print("Warning! No rgb/bsv3/bcell files found in the specified directories.")
+        print("Remember you should specify the directories where the files are, not the files themselves.")
+        print("If you need help, execute the following command: tstorgb --help\n\n")
+        return
 
     print(f"[{total} file(s) found!]\n\n")
 

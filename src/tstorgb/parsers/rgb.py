@@ -12,31 +12,20 @@ def rgb_parser(file, byte_seek=0):
 
         pixel_data = np.zeros((height, width, 4))
         if check == 8192:
-            for i in range(height):
-                for j in range(width):
-                    rgba_bits = int.from_bytes(
-                        f.read(2), byteorder="little", signed=False
-                    )
-                    pixel_data[i, j, 0] = ((rgba_bits >> 12) & 15) * 255 / 15  # Red
-                    pixel_data[i, j, 1] = ((rgba_bits >> 8) & 15) * 255 / 15  # Green
-                    pixel_data[i, j, 2] = ((rgba_bits >> 4) & 15) * 255 / 15  # Blue
-                    pixel_data[i, j, 3] = ((rgba_bits >> 0) & 15) * 255 / 15  # Alpha
+            buffer = np.frombuffer(f.read(), dtype=np.uint16, count=width * height).reshape(height, width)
+            pixel_data[..., 0] = np.bitwise_and(np.right_shift(buffer, 12), 15) * 255 / 15  # Red
+            pixel_data[..., 1] = np.bitwise_and(np.right_shift(buffer, 8), 15) * 255 / 15   # Green
+            pixel_data[..., 2] = np.bitwise_and(np.right_shift(buffer, 4), 15) * 255 / 15   # Blue
+            pixel_data[..., 3] = np.bitwise_and(np.right_shift(buffer, 0), 15) * 255 / 15   # Alpha
 
             # Get base image
             return Image.new_from_array(pixel_data, interpretation="srgb").unpremultiply() # type: ignore
         elif check == 0:
-            for i in range(height):
-                for j in range(width):
-                    pixel_data[i, j, 0] = int.from_bytes(f.read(1), signed=False)  # Red
-                    pixel_data[i, j, 1] = int.from_bytes(
-                        f.read(1), signed=False
-                    )  # green
-                    pixel_data[i, j, 2] = int.from_bytes(
-                        f.read(1), signed=False
-                    )  # Blue
-                    pixel_data[i, j, 3] = int.from_bytes(
-                        f.read(1), signed=False
-                    )  # Alpha
+            buffer = np.frombuffer(f.read(), dtype=np.uint32, count=width * height).reshape(height, width)
+            pixel_data[..., 0] = np.bitwise_and(np.right_shift(buffer, 0), 255)     # Red
+            pixel_data[..., 1] = np.bitwise_and(np.right_shift(buffer, 8), 255)     # Green
+            pixel_data[..., 2] = np.bitwise_and(np.right_shift(buffer, 16), 255)    # Blue
+            pixel_data[..., 3] = np.bitwise_and(np.right_shift(buffer, 24), 255)    # Alpha
 
             # Get base image
             return Image.new_from_array(pixel_data, interpretation="srgb") # type: ignore
