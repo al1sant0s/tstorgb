@@ -94,6 +94,10 @@ including the 'rgb_folder' and 'another_rgb_folder' subdirectories.
 tstorgb --search_zip path/to/Downloads/rgb_files path/to/Images path/to/sprites
 ```
 
+## Bsv3 and Bcell files
+
+To process bsv3 and bcell files just keep them in the same directory as their correspondent rgb files. The correspondent files have the same names before the extension, like building.rgb and building.bsv3 or character_does_action_image_x.rgb and character_does_action.bcell. As long as they are in the same directories, they'll be automatically processed. You can prevent their processing by passing the flags --disable_bsv3 and –disable_bcell. 
+
 ## Animated images
 
 The --sequential and --sequential_delay arguments make it possible to produce animated images using specific image formats (e.g. webp). To produce animated images

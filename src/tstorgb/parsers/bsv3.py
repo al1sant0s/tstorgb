@@ -159,37 +159,36 @@ def bsv3a(bsv3_file, bytepos, cells_imgs, cells_subregions, cells_names, is_alph
                 if np.linalg.det(affine_matrix[i][j, ...]) > 0:
                     tlc[i][0, j] = np.round(tlc[i][0, j]) - cells_subregions[index][0]
                 else:
-                    tlc[i][0, j] = np.round(tlc[i][0, j]) - cells_subregions[index][2] + cells_subregions[index][0]
+                    tlc[i][0, j] = np.floor(tlc[i][0, j]) - cells_subregions[index][2] + cells_subregions[index][0]
 
                 tlc[i][1, j] = np.floor(tlc[i][1, j]) - cells_subregions[index][1]
 
                 # Decide if multilayer processing should be done when rendering the frames.
                 # Multilayer is very slow but it prevents alpha overlapping (brighter pixels in the intersections).
                 # Only performs if there's at least one semitranslucent cropped subcell.
+                extend = "background"
                 if "_crop" in cells_names[index]:
-                    if (
-                        subcells_imgs[i][j][3].maxpos()[0] < 245
-                        or 0
-                        < cells_imgs[index]
-                        .crop(
-                            0.4 * cells_imgs[index].width,
-                            0.4 * cells_imgs[index].height,
-                            0.2 * cells_imgs[index].width + 1,
-                            0.2 * cells_imgs[index].height + 1,
-                        )[3]
-                        .minpos()[0]
-                        < 245
-                    ):
+
+                    alpha_mask = (subcells_imgs[i][j][3] < 255).ifthenelse(subcells_imgs[i][j][3], 0)
+                    alpha_mask = alpha_mask.maxpos()[0]
+                    sub_alpha_mask = subcells_imgs[i][j].crop(
+                        0.4 * subcells_imgs[i][j].width,
+                        0.4 * subcells_imgs[i][j].height,
+                        0.2 * subcells_imgs[i][j].width + 1,
+                        0.2 * subcells_imgs[i][j].height + 1,
+                    )[3]
+                    sub_alpha_mask = (sub_alpha_mask < 255).ifthenelse(sub_alpha_mask, 0).avg()
+
+                    if (alpha_mask > 50 and alpha_mask < 245) and (sub_alpha_mask > 50 and sub_alpha_mask < 245):
                         subcells_layers[i].add(
                             cells_names[index].split("_crop", maxsplit=1)[0]
                         )
-                    subcells_imgs[i][j] = subcells_imgs[i][j].affine(
-                        affine_matrix[i][j, ...].flatten().tolist(), extend="copy"
-                    )
-                else:
-                    subcells_imgs[i][j] = subcells_imgs[i][j].affine(
-                        affine_matrix[i][j, ...].flatten().tolist(), extend="background"
-                    )
+                        extend = "copy"
+
+                # Apply affine matrix transformation.
+                subcells_imgs[i][j] = subcells_imgs[i][j].affine(
+                    affine_matrix[i][j, ...].flatten().tolist(), extend=extend
+                )
 
                 # Get bottom right corner.
                 brc[i][..., j] = tlc[i][..., j] + np.array(
@@ -281,37 +280,36 @@ def bsv3b(bsv3_file, bytepos, cells_imgs, cells_subregions, cells_names, is_alph
             if np.linalg.det(affine_matrix[j, ...]) > 0:
                 tlc[0, j] = np.round(tlc[0, j]) - cells_subregions[index][0]
             else:
-                tlc[0, j] = np.round(tlc[0, j]) - cells_subregions[index][2] + cells_subregions[index][0]
+                tlc[0, j] = np.floor(tlc[0, j]) - cells_subregions[index][2] + cells_subregions[index][0]
 
             tlc[1, j] = np.floor(tlc[1, j]) - cells_subregions[index][1]
 
             # Decide if multilayer processing should be done when rendering the frames.
             # Multilayer is very slow but it prevents alpha overlapping (brighter pixels in the intersections).
             # Only performs if there's at least one semitranslucent cropped subcell.
+            extend = "background"
             if "_crop" in cells_names[index]:
-                if (
-                    subcells_imgs[j][3].maxpos()[0] < 245
-                    or 0
-                    < cells_imgs[index]
-                    .crop(
-                        0.4 * cells_imgs[index].width,
-                        0.4 * cells_imgs[index].height,
-                        0.2 * cells_imgs[index].width + 1,
-                        0.2 * cells_imgs[index].height + 1,
-                    )[3]
-                    .minpos()[0]
-                    < 245
-                ):
+
+                alpha_mask = (subcells_imgs[j][3] < 255).ifthenelse(subcells_imgs[j][3], 0)
+                alpha_mask = alpha_mask.maxpos()[0]
+                sub_alpha_mask = subcells_imgs[j].crop(
+                    0.4 * subcells_imgs[j].width,
+                    0.4 * subcells_imgs[j].height,
+                    0.2 * subcells_imgs[j].width + 1,
+                    0.2 * subcells_imgs[j].height + 1,
+                )[3]
+                sub_alpha_mask = (sub_alpha_mask < 255).ifthenelse(sub_alpha_mask, 0).avg()
+
+                if (alpha_mask > 50 and alpha_mask < 245) and (sub_alpha_mask > 50 and sub_alpha_mask < 245):
                     subcells_layers.add(
                         cells_names[index].split("_crop", maxsplit=1)[0]
                     )
-                subcells_imgs[j] = subcells_imgs[j].affine(
-                    affine_matrix[j, ...].flatten().tolist(), extend="copy"
-                )
-            else:
-                subcells_imgs[j] = subcells_imgs[j].affine(
-                    affine_matrix[j, ...].flatten().tolist(), extend="background"
-                )
+                    extend = "copy"
+
+            # Apply affine matrix transformation.
+            subcells_imgs[j] = subcells_imgs[j].affine(
+                affine_matrix[j, ...].flatten().tolist(), extend=extend
+            )
 
             # Get bottom right corner.
             brc[..., j] = tlc[..., j] + np.array(
