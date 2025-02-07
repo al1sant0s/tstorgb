@@ -169,24 +169,20 @@ def bsv3a(bsv3_file, bytepos, cells_imgs, cells_subregions, cells_names, is_alph
                 extend = "background"
                 if "_crop" in cells_names[index]:
 
-                    alpha_mask = (subcells_imgs[i][j][3] < 255).ifthenelse(subcells_imgs[i][j][3], 0)
-                    alpha_mask = alpha_mask.maxpos()[0]
+                    alpha_mask = subcells_imgs[i][j][3].maxpos()[0]
+                    sub_alpha_mask = subcells_imgs[i][j].crop(
+                        0.4 * subcells_imgs[i][j].width,
+                        0.4 * subcells_imgs[i][j].height,
+                        0.2 * subcells_imgs[i][j].width + 1,
+                        0.2 * subcells_imgs[i][j].height + 1,
+                    )[3]
+                    sub_alpha_mask = (sub_alpha_mask < 255).ifthenelse(sub_alpha_mask, 0).avg()
 
-                    if alpha_mask > 50 and alpha_mask < 245:
-
-                        sub_alpha_mask = subcells_imgs[i][j].crop(
-                            0.4 * subcells_imgs[i][j].width,
-                            0.4 * subcells_imgs[i][j].height,
-                            0.2 * subcells_imgs[i][j].width + 1,
-                            0.2 * subcells_imgs[i][j].height + 1,
-                        )[3]
-                        sub_alpha_mask = (sub_alpha_mask < 255).ifthenelse(sub_alpha_mask, 0).avg()
-
-                        if subcells_imgs[i][j][3].maxpos()[0] < 255 or (sub_alpha_mask > 50 and sub_alpha_mask < 245):
-                            subcells_layers[i].add(
-                                cells_names[index].split("_crop", maxsplit=1)[0]
-                            )
-                            extend = "copy"
+                    if (alpha_mask > 0 and alpha_mask < 255) or sub_alpha_mask > 50:
+                        subcells_layers[i].add(
+                            cells_names[index].split("_crop", maxsplit=1)[0]
+                        )
+                        extend = "copy"
 
                 # Apply affine matrix transformation.
                 subcells_imgs[i][j] = subcells_imgs[i][j].affine(
@@ -293,24 +289,20 @@ def bsv3b(bsv3_file, bytepos, cells_imgs, cells_subregions, cells_names, is_alph
             extend = "background"
             if "_crop" in cells_names[index]:
 
-                alpha_mask = (subcells_imgs[j][3] < 255).ifthenelse(subcells_imgs[j][3], 0)
-                alpha_mask = alpha_mask.maxpos()[0]
+                alpha_mask = subcells_imgs[j][3].maxpos()[0]
+                sub_alpha_mask = subcells_imgs[j].crop(
+                    0.4 * subcells_imgs[j].width,
+                    0.4 * subcells_imgs[j].height,
+                    0.2 * subcells_imgs[j].width + 1,
+                    0.2 * subcells_imgs[j].height + 1,
+                )[3]
+                sub_alpha_mask = (sub_alpha_mask < 255).ifthenelse(sub_alpha_mask, 0).avg()
 
-                if alpha_mask > 50 and alpha_mask < 245:
-
-                    sub_alpha_mask = subcells_imgs[j].crop(
-                        0.4 * subcells_imgs[j].width,
-                        0.4 * subcells_imgs[j].height,
-                        0.2 * subcells_imgs[j].width + 1,
-                        0.2 * subcells_imgs[j].height + 1,
-                    )[3]
-                    sub_alpha_mask = (sub_alpha_mask < 255).ifthenelse(sub_alpha_mask, 0).avg()
-
-                    if subcells_imgs[j][3].maxpos()[0] < 255 or (sub_alpha_mask > 50 and sub_alpha_mask < 245):
-                        subcells_layers.add(
-                            cells_names[index].split("_crop", maxsplit=1)[0]
-                        )
-                        extend = "copy"
+                if (alpha_mask > 0 and alpha_mask < 255) or sub_alpha_mask > 50:
+                    subcells_layers.add(
+                        cells_names[index].split("_crop", maxsplit=1)[0]
+                    )
+                    extend = "copy"
 
             # Apply affine matrix transformation.
             subcells_imgs[j] = subcells_imgs[j].affine(
