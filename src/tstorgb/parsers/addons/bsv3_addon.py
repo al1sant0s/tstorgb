@@ -30,25 +30,18 @@ def crop_cells(bsv3_file, bytepos, rgb_img, cellnumber):
             dy = 0
             dw = 0
             dh = 0
-            img_array = rgb_img.numpy()
 
-            if x - 1 >= 0 and np.any(img_array[y : y + h, x - 1, :]) is np.True_:
+            if x - 1 >= 0 and rgb_img[3].crop(x - 1, y, 1, h).maxpos()[0] > 0:
                 dx -= 1
                 dw += 1
-            if (
-                x + w < img_array.shape[1]
-                and np.any(img_array[y : y + h, x + w, :]) is np.True_
-            ):
+            if x + w < rgb_img.width and rgb_img[3].crop(x + w, y, 1, h).maxpos()[0] > 0:
                 dw += 1
 
-            if y - 1 >= 0 and np.any(img_array[y - 1, x : x + w, :]) is np.True_:
+            if y - 1 >= 0 and rgb_img[3].crop(x, y - 1, w, 1).maxpos()[0] > 0:
                 dy -= 1
                 dh += 1
 
-            if (
-                y + h < img_array.shape[0]
-                and np.any(img_array[y + h, x : x + w, :]) is np.True_
-            ):
+            if y + h < rgb_img.height and rgb_img[3].crop(x, y + h, w, 1).maxpos()[0] > 0:
                 dh += 1
 
             cells_imgs[i] = rgb_img.crop(x + dx, y + dy, w + dw, h + dh)
