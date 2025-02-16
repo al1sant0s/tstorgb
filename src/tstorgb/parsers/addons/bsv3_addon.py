@@ -110,6 +110,7 @@ def get_frama_data(bsv3_file, bytepos, cells_imgs, cells_subregions, cells_names
                     .reshape(2, 2)
                     .transpose()
                 )
+                extend = "background" # Affine matrix default extend method.
 
                 # Get alpha.
                 if is_alpha == 1:
@@ -135,23 +136,30 @@ def get_frama_data(bsv3_file, bytepos, cells_imgs, cells_subregions, cells_names
                 # Decide if multilayer processing should be done when rendering the frames.
                 # Multilayer is very slow but it prevents alpha overlapping (brighter pixels in the intersections).
                 # Only performs if there's at least one semitranslucent cropped subcell.
-                extend = "background"
                 if "_crop" in cells_names[index]:
 
-                    alpha_mask = subcells_imgs[i][j][3].maxpos()[0]
-                    sub_alpha_mask = subcells_imgs[i][j][3].crop(
-                        0.4 * subcells_imgs[i][j].width,
-                        0.4 * subcells_imgs[i][j].height,
-                        0.2 * subcells_imgs[i][j].width + 1,
-                        0.2 * subcells_imgs[i][j].height + 1,
-                    )
-                    sub_alpha_mask = (sub_alpha_mask < 255).ifthenelse(sub_alpha_mask, 0).avg()
+                    alpha_max = subcells_imgs[i][j][3].maxpos()[0]
 
-                    if (alpha_mask > 0 and alpha_mask < 255) or sub_alpha_mask > 50:
-                        subcells_layers[i].add(
-                            cells_names[index].split("_crop", maxsplit=1)[0]
-                        )
-                        extend = "copy"
+                    if alpha_max > 0:
+                        alpha_mask = subcells_imgs[i][j][3]
+                        alpha_full_mask = alpha_mask > 0
+
+                        interior_alpha_mask = alpha_mask
+                        interior_alpha_mask = interior_alpha_mask.sobel().ifthenelse(0, alpha_mask)
+                        alpha_partial_mask = (interior_alpha_mask > 70).boolean(interior_alpha_mask < 255, "and")
+
+                        transparency_ratio = alpha_partial_mask.avg()/alpha_full_mask.avg()
+
+                        if (alpha_max > 0 and alpha_max < 255) or transparency_ratio > 0.05:
+                            subcells_layers[i].add(
+                                cells_names[index].split("_crop", maxsplit=1)[0]
+                            )
+                            extend = "copy"
+
+                        # If rotate cropped cells, create new pixels for out of bounds areas.
+                        elif affine_matrix[i][j, 0, 1] != 0 or affine_matrix[i][j, 1, 0] != 0:
+                            extend = "copy"
+
 
                 # Apply affine matrix transformation.
                 subcells_imgs[i][j] = subcells_imgs[i][j].affine(
