@@ -132,7 +132,9 @@ def main():
     if total == 0:
         print("[No file(s) found!]\n\n")
         print("Warning! No rgb/bsv3/bcell files found in the specified directories.")
-        print("Remember you should specify the directories where the files are, not the files themselves.")
+        print(
+            "Remember you should specify the directories where the files are, not the files themselves."
+        )
         print("If you need help, execute the following command: tstorgb --help\n\n")
         return
 
@@ -159,7 +161,7 @@ def main():
                     # Clear line.
                     print(150 * " ", end="\r")
                     print(
-                        f"Unknown bcell signature. Skipping this file -> {bcell_file.name}!"
+                        f"Unknown bcell signature, invalid or missing rgb file. Skipping this file -> {bcell_file.name}!"
                     )
                     continue
 
@@ -246,7 +248,7 @@ def main():
                     # Clear line.
                     print(150 * " ", end="\r")
                     print(
-                        f"Unknown bsv3 signature or invalid rgb file. Skipping this file -> {bsv3_file.name}!"
+                        f"Unknown bsv3 signature, invalid or missing rgb file. Skipping this file -> {bsv3_file.name}!"
                     )
                     continue
 
@@ -346,7 +348,9 @@ def main():
             if rgb_image is False:
                 # Clear line.
                 print(150 * " ", end="\r")
-                print(f"Invalid rgb file. Skipping this file -> {rgb_file.name}!")
+                print(
+                    f"Invalid or missing rgb file. Skipping this file -> {rgb_file.name}!"
+                )
                 continue
 
             rgb_image.write_to_file(  # type: ignore

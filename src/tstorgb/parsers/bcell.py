@@ -104,6 +104,9 @@ def bcell_11(bcell_file):
         brc = [np.zeros((2, 1), dtype=int) for _ in range(blocks)]
         subcells_dim = [np.zeros((2, 1), dtype=int) for _ in range(blocks)]
 
+        # Fallback image.
+        null_img = Image.new_from_array(np.zeros((1, 1, 4)), interpretation="srgb")
+
         # Read blocks info.
         for i in range(blocks):
             # Ignore extra byte.
@@ -125,6 +128,7 @@ def bcell_11(bcell_file):
             rgb_img_path = Path(bcell_file.parent, frames[i])
             rgb_img = rgb_parser(rgb_img_path)
             if rgb_img is False:
+                subcells_imgs[i].append(null_img)
                 continue
             else:
                 bcell_set.add(frames[i])
@@ -135,6 +139,10 @@ def bcell_11(bcell_file):
             subcells_dim[i][1, 0] = subcells_imgs[i][0].height
 
             brc[i][..., 0] = tlc[i][..., 0] + subcells_dim[i][..., 0]
+
+    # Check if at least a single image was found. If not, then give up.
+    if len(bcell_set) == 0:
+        return (None, 0, set(), False)
 
     c = deepcopy(np.hstack(tlc))
     d = deepcopy(np.hstack(brc))
@@ -164,6 +172,7 @@ def bcell_13(bcell_file, disable_shadows=False):
             np.load(resources.open_binary("tstorgb", "accessories", "shadow.npy")),
             interpretation="srgb",
         )
+        # Fallback image.
         null_img = Image.new_from_array(np.zeros((1, 1, 4)), interpretation="srgb")
 
         # Set of images used.
@@ -220,7 +229,7 @@ def bcell_13(bcell_file, disable_shadows=False):
                     # Get the subcell image.
                     rgb_img = rgb_parser(Path(bcell_file.parent, frames[i][j]))
                     if rgb_img is False:
-                        subcells_imgs[i].append(null_img.copy())  # type: ignore
+                        subcells_imgs[i].append(null_img)  # type: ignore
                     else:
                         subcells_imgs[i].append(rgb_img)
 
