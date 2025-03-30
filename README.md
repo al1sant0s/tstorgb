@@ -32,6 +32,8 @@ python -m pip install tstorgb@git+https://github.com/al1sant0s/tstorgb
 python3 -m pip install tstorgb@git+https://github.com/al1sant0s/tstorgb
 ```
 
+If you use windows I recommend you to get the modern [windows terminal from microsoft store](https://apps.microsoft.com/detail/9n0dx20hk701?hl).
+
 ## Usage
 
 ```
