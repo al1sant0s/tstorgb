@@ -82,6 +82,16 @@ def main():
         type=int,
     )
 
+
+    parser.add_argument(
+        "-g",
+        "--group",
+        help="""
+        If set animations will be grouped by entity (name before first underscore in filename).
+        """,
+        action="store_true"
+    )
+
     parser.add_argument(
         "input_dir",
         help="List of directories containing the rgb files.",
@@ -167,11 +177,16 @@ def main():
 
                 bcell_set = bcell_set.union(new_set)
 
-                entity = bcell_file.stem.split("_", maxsplit=1)
-                if len(entity) == 2:
-                    target = Path(args.output_dir, entity[0], entity[1])
+                # Decide if animations should be grouped by entity.
+                if args.group is True:
+                    entity = bcell_file.stem.split("_", maxsplit=1)
+                    if len(entity) == 2:
+                        target = Path(args.output_dir, entity[0], entity[1])
+                    else:
+                        target = Path(args.output_dir, entity[0], "_default")
+
                 else:
-                    target = Path(args.output_dir, entity[0], "_default")
+                    target = Path(args.output_dir, bcell_file.stem)
 
                 target.mkdir(parents=True, exist_ok=True)
 
@@ -254,11 +269,16 @@ def main():
 
                 bsv3_set = bsv3_set.union(new_set)
 
-                entity = bsv3_file.stem.split("_", maxsplit=1)
-                if len(entity) == 2:
-                    target = Path(args.output_dir, entity[0], entity[1])
+                # Decide if animations should be grouped by entity.
+                if args.group is True:
+                    entity = bsv3_file.stem.split("_", maxsplit=1)
+                    if len(entity) == 2:
+                        target = Path(args.output_dir, entity[0], entity[1])
+                    else:
+                        target = Path(args.output_dir, entity[0], "_default")
+
                 else:
-                    target = Path(args.output_dir, entity[0], "_default")
+                    target = Path(args.output_dir, bsv3_file.stem)
 
                 target.mkdir(parents=True, exist_ok=True)
 
@@ -331,14 +351,18 @@ def main():
             if rgb_file.name in bcell_set or rgb_file.name in bsv3_set:
                 continue
 
-            entity = rgb_file.stem.split("_", maxsplit=1)
 
-            if len(entity) == 2:
-                target = Path(
-                    args.output_dir, entity[0], entity[1].split("_image", maxsplit=1)[0]
-                )
+            # Decide if animations should be grouped by entity.
+            if args.group is True:
+                entity = rgb_file.stem.split("_", maxsplit=1)
+                if len(entity) == 2:
+                    target = Path(
+                        args.output_dir, entity[0], entity[1].split("_image", maxsplit=1)[0]
+                    )
+                else:
+                    target = Path(args.output_dir, entity[0], "_default")
             else:
-                target = Path(args.output_dir, entity[0], "_default")
+                target = Path(args.output_dir, rgb_file.stem)
 
             target.mkdir(parents=True, exist_ok=True)
 

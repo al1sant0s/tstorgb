@@ -54,19 +54,6 @@ The images will be saved in subdirectories within the destination directory. Eac
   - destination/yellowhouse/
   - destination/orangehouse/
 
-Sometimes an entity also has variations. Suppose for example there exists 'yellowhouse_normal.rgb' and 'yellowhouse_premium.rgb'. Then this would be the resulting directory structure:
-
-- destination/
-  - destination/yellowhouse
-    - destination/yellowhouse/normal
-    - destination/yellowhouse/premium
-  - destination/orangehouse
-    - destination/orangehouse/_default
-
-In theory, the entity is just the name that precedes the first underscore character in a filename and the variation is the rest after the underscore excluding the .rgb extension.
-For example, given the name 'something_anything_else.rgb', _something_ is the entity and _anything_else_ is the variation.
-When a file corresponding to an entity doesn't specify a variation (a filename without an underscore in it like 'orangehouse.rgb') the _default variation subdirectory will be created.
-
 ## Arguments
 
 If you have your rgb files inside a zip file named '1', you can pass the --search_zip argument to deal with the extraction.
@@ -107,4 +94,48 @@ with a refresh rate of 30 fps, for example:
 
 ```
 tstorgb --search_zip --sequential --sequential_delay 33 --output_extension webp path/to/Images path/to/sprites
+```
+
+## Grouping images
+
+Set the --group argument to organize the images in subdirectories within the destination directory.
+Each subdirectory corresponds to a certain entity. For example, if there were two image files in 'img_dir', one named
+'yellowhouse.png' and the other named 'orangehouse.png', the destination directory would have the following structure after the conversion:
+
+- destination/
+  - destination/yellowhouse/
+  - destination/orangehouse/
+
+Sometimes an entity also has variations. Suppose for example there exists 'yellowhouse_normal.png' and 'yellowhouse_premium.png'. Then this would be the resulting directory structure:
+
+- destination/
+  - destination/yellowhouse
+    - destination/yellowhouse/normal
+    - destination/yellowhouse/premium
+  - destination/orangehouse
+    - destination/orangehouse/_default
+
+In theory, the entity is just the name that precedes the first underscore character in a filename and the variation
+is the rest after the underscore excluding the image extension.
+For example, given the name 'something_anything_else.png', _something_ is the entity and _anything_else_ is the variation.
+When a file corresponding to an entity doesn't specify a variation (a filename without an underscore in it like 'orangehouse.png') the _default variation subdirectory will be created.
+
+## Short options
+
+
+Here is a list of some options with their correspondent short options.
+
+* --search_zip [-z]
+```shell
+tstorgb -z path/to/Downloads/rgb_files path/to/Images path/to/sprites
+```
+
+* --image_quality [-q]
+```shell
+tstorgb -q 95 path/to/Downloads/rgb_files path/to/Images path/to/sprites
+```
+
+* --output_extension [-e]
+ ```shell
+tstorgb -e webp path/to/Downloads/rgb_files path/to/Images path/to/sprites
 ```
