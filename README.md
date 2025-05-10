@@ -146,5 +146,5 @@ tstorgb -e webp path/to/Images path/to/sprites
 
 * --group [-g]
 ```shell
-tstorgb --group path/to/Images path/to/sprites
+tstorgb -g path/to/Images path/to/sprites
 ```
