@@ -120,6 +120,10 @@ is the rest after the underscore excluding the image extension.
 For example, given the name 'something_anything_else.png', _something_ is the entity and _anything_else_ is the variation.
 When a file corresponding to an entity doesn't specify a variation (a filename without an underscore in it like 'orangehouse.png') the _default variation subdirectory will be created.
 
+```
+tstorgb --group path/to/Images path/to/sprites
+```
+
 ## Short options
 
 
@@ -127,15 +131,20 @@ Here is a list of some options with their correspondent short options.
 
 * --search_zip [-z]
 ```shell
-tstorgb -z path/to/Downloads/rgb_files path/to/Images path/to/sprites
+tstorgb -z path/to/Images path/to/sprites
 ```
 
 * --image_quality [-q]
 ```shell
-tstorgb -q 95 path/to/Downloads/rgb_files path/to/Images path/to/sprites
+tstorgb -q 95 path/to/Images path/to/sprites
 ```
 
 * --output_extension [-e]
  ```shell
-tstorgb -e webp path/to/Downloads/rgb_files path/to/Images path/to/sprites
+tstorgb -e webp path/to/Images path/to/sprites
+```
+
+* --group [-g]
+```shell
+tstorgb --group path/to/Images path/to/sprites
 ```

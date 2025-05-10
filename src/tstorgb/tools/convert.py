@@ -26,6 +26,7 @@ def main():
     )
 
     parser.add_argument(
+        "-z",
         "--search_zip",
         help="If enabled, zip files named '1' within specified directories will be extracted.",
         action="store_true",
@@ -51,6 +52,7 @@ def main():
     )
 
     parser.add_argument(
+        "-q",
         "--image_quality",
         help="Percentage specifying image quality.",
         default=100,
@@ -58,6 +60,7 @@ def main():
     )
 
     parser.add_argument(
+        "-e",
         "--output_extension",
         help="""
         Image format used for the exported images.
