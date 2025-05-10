@@ -98,15 +98,15 @@ tstorgb --search_zip --sequential --sequential_delay 33 --output_extension webp 
 
 ## Grouping images
 
-Set the --group argument to organize the images in subdirectories within the destination directory.
-Each subdirectory corresponds to a certain entity. For example, if there were two image files in 'img_dir', one named
-'yellowhouse.png' and the other named 'orangehouse.png', the destination directory would have the following structure after the conversion:
+Set the --group argument to organize the files in subdirectories within the destination directory.
+Each subdirectory corresponds to a certain entity. For example, if there were two files in 'rgb_dir', one named
+'yellowhouse.rgb' and the other named 'orangehouse.rgb', the destination directory would have the following structure after the conversion:
 
 - destination/
   - destination/yellowhouse/
   - destination/orangehouse/
 
-Sometimes an entity also has variations. Suppose for example there exists 'yellowhouse_normal.png' and 'yellowhouse_premium.png'. Then this would be the resulting directory structure:
+Sometimes an entity also has variations. Suppose for example there exists 'yellowhouse_normal.rgb' and 'yellowhouse_premium.rgb'. Then this would be the resulting directory structure:
 
 - destination/
   - destination/yellowhouse
@@ -116,12 +116,12 @@ Sometimes an entity also has variations. Suppose for example there exists 'yello
     - destination/orangehouse/_default
 
 In theory, the entity is just the name that precedes the first underscore character in a filename and the variation
-is the rest after the underscore excluding the image extension.
-For example, given the name 'something_anything_else.png', _something_ is the entity and _anything_else_ is the variation.
-When a file corresponding to an entity doesn't specify a variation (a filename without an underscore in it like 'orangehouse.png') the _default variation subdirectory will be created.
+is the rest after the underscore excluding the file extension.
+For example, given the name 'something_anything_else.rgb', _something_ is the entity and _anything_else_ is the variation.
+When a file corresponding to an entity doesn't specify a variation (a filename without an underscore in it like 'orangehouse.rgb') the _default variation subdirectory will be created.
 
 ```
-tstorgb --group path/to/Images path/to/sprites
+tstorgb --group path/to/rgb_dir path/to/destination
 ```
 
 ## Short options
