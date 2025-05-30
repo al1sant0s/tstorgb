@@ -200,8 +200,8 @@ def bcell_13(bcell_file, disable_shadows=False):
             bcell_set.add(frames[i][0])
             start = f.tell()
 
-            f.seek(start + 9)
-            subcells[i] = int.from_bytes(f.read(1)) + 1
+            f.seek(start + 8)
+            subcells[i] = int.from_bytes(f.read(2)) + 1
             f.seek(start)
 
             # Shape the arrays.
