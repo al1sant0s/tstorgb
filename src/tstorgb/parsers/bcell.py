@@ -14,8 +14,10 @@ def bcell_parser(bcell_file, **kwargs):
             return bcell_10(bcell_file)
         elif check == "bcell11":
             return bcell_11(bcell_file)
+        elif check == "bcell12":
+            return bcell_13(bcell_file, is_alpha = False, disable_shadows=kwargs["disable_shadows"])
         elif check == "bcell13":
-            return bcell_13(bcell_file, disable_shadows=kwargs["disable_shadows"])
+            return bcell_13(bcell_file, is_alpha = True, disable_shadows=kwargs["disable_shadows"])
         else:
             # Unsupported or invalid file.
             return (None, 0, set(), False)
@@ -163,7 +165,7 @@ def bcell_11(bcell_file):
     return (frame_iterator, blocks, bcell_set, True)
 
 
-def bcell_13(bcell_file, disable_shadows=False):
+def bcell_13(bcell_file, is_alpha, disable_shadows=False):
     with open(bcell_file, "rb") as f:
         f.seek(8)
 
@@ -271,7 +273,8 @@ def bcell_13(bcell_file, disable_shadows=False):
                     )
 
                     # Get alpha.
-                    alpha[i][j] = np.frombuffer(f.read(4), dtype=np.float32)
+                    if is_alpha is True:
+                        alpha[i][j] = np.frombuffer(f.read(4), dtype=np.float32)
 
                 subcells_imgs[i][j] *= [1, 1, 1, alpha[i][j]]
                 subcells_imgs[i][j] = subcells_imgs[i][j].affine(

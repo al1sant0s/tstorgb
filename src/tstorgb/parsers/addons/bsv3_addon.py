@@ -22,8 +22,8 @@ def crop_cells(bsv3_file, bytepos, rgb_img, cellnumber):
 
             x = int(regions[0])
             y = int(regions[1])
-            w = int(regions[2])
-            h = int(regions[3])
+            w = max(int(regions[2]), 1)
+            h = max(int(regions[3]), 1)
 
             # Check 4 edges.
             dx = 0
