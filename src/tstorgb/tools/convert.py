@@ -125,7 +125,7 @@ def main():
     directories = [Path(item) for item in args.input_dir]
 
     # Set libvips cache in order to lower memory usage.
-    cache_set_max(0)
+    # cache_set_max(0)
 
     # Help with the progress report.
     n = 0
