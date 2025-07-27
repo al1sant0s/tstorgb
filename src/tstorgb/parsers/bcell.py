@@ -171,7 +171,7 @@ def bcell_13(bcell_file, is_alpha, disable_shadows=False):
 
         # Preload accessories
         shadow_img = Image.new_from_array(
-            np.load(resources.open_binary("tstorgb", "accessories", "shadow.npy")),
+            np.load(resources.open_binary("tstorgb.accessories", "shadow.npy")),
             interpretation="srgb",
         )
         # Fallback image.
