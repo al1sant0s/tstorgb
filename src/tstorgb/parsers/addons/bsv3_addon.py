@@ -8,19 +8,22 @@ def crop_cells(bsv3_file, bytepos, rgb_img, cellnumber):
 
         cells_imgs = [Image.black(1, 1) for _ in range(cellnumber)]  # type: ignore
         cells_subregions = [np.array([]) for _ in range(cellnumber)]
+        cells_names = ["" for _ in range(cellnumber)]
 
         # Get cells.
         for i in range(cellnumber):
             skip = int.from_bytes(f.read(1), byteorder="little", signed=False)
             cellname = f.read(skip).decode("utf8")[0:-1].lower()
 
+            cells_names[i] = cellname
+
             # Read x, y, width and height.
             regions = np.frombuffer(f.read(8), dtype=np.uint16).reshape(4)
 
             x = int(regions[0])
             y = int(regions[1])
-            w = max(int(regions[2]), 1)
-            h = max(int(regions[3]), 1)
+            w = int(regions[2])
+            h = int(regions[3])
 
             # Check 4 edges.
             dx = 0
@@ -44,15 +47,17 @@ def crop_cells(bsv3_file, bytepos, rgb_img, cellnumber):
             cells_imgs[i] = rgb_img.crop(x + dx, y + dy, w + dw, h + dh)
             cells_subregions[i] = np.array([-dx, -dy, dw, dh], dtype=int)
 
-        return (cells_imgs, cells_subregions, f.tell())
+        return (cells_imgs, cells_subregions, cells_names, f.tell())
 
 
-def get_frama_data(bsv3_file, bytepos, cells_imgs, cells_subregions, is_alpha, blocks, check):
+def get_frama_data(bsv3_file, bytepos, cells_imgs, cells_subregions, cells_names, is_alpha, blocks, check):
     with open(bsv3_file, "rb") as f:
         f.seek(bytepos)
 
         # Subcell data.
         subcells_imgs = [list() for _ in range(blocks)]
+        subcells_names = [list() for _ in range(blocks)]
+        subcells_layers = [set() for _ in range(blocks)]
         tlc = [np.array([]) for _ in range(blocks)]
         brc = [np.array([]) for _ in range(blocks)]
         affine_matrix = [np.array([]) for _ in range(blocks)]
@@ -71,6 +76,7 @@ def get_frama_data(bsv3_file, bytepos, cells_imgs, cells_subregions, is_alpha, b
                 Image.new_from_array(np.zeros((1, 1, 4)), interpretation="srgb")
                 for _ in range(subcellnumber)
             ]
+            subcells_names[i] = ["" for _ in range(subcellnumber)]
             tlc[i] = np.zeros((2, subcellnumber), dtype=np.float32)
             brc[i] = np.zeros((2, subcellnumber), dtype=np.float32)
             affine_matrix[i] = np.array(
@@ -115,6 +121,7 @@ def get_frama_data(bsv3_file, bytepos, cells_imgs, cells_subregions, is_alpha, b
                     alpha[i][j] = 255
 
                 # Process subcells.
+                subcells_names[i][j] = cells_names[index]
                 subcells_imgs[i][j] = cells_imgs[index].copy()
                 subcells_imgs[i][j] *= [1, 1, 1, alpha[i][j] / 255]
 
@@ -125,6 +132,34 @@ def get_frama_data(bsv3_file, bytepos, cells_imgs, cells_subregions, is_alpha, b
                     tlc[i][0, j] = np.floor(tlc[i][0, j]) - cells_subregions[index][2] + cells_subregions[index][0]
 
                 tlc[i][1, j] = np.floor(tlc[i][1, j]) - cells_subregions[index][1]
+
+                # Decide if multilayer processing should be done when rendering the frames.
+                # Multilayer is very slow but it prevents alpha overlapping (brighter pixels in the intersections).
+                # Only performs if there's at least one semitranslucent cropped subcell.
+                if "_crop" in cells_names[index]:
+
+                    alpha_max = subcells_imgs[i][j][3].maxpos()[0]
+
+                    if alpha_max > 0:
+                        alpha_mask = subcells_imgs[i][j][3]
+                        alpha_full_mask = alpha_mask > 0
+
+                        interior_alpha_mask = alpha_mask
+                        interior_alpha_mask = interior_alpha_mask.sobel().ifthenelse(0, alpha_mask)
+                        alpha_partial_mask = (interior_alpha_mask > 70).boolean(interior_alpha_mask < 255, "and")
+
+                        transparency_ratio = alpha_partial_mask.avg()/alpha_full_mask.avg()
+
+                        if (alpha_max > 0 and alpha_max < 255) or transparency_ratio > 0.05:
+                            subcells_layers[i].add(
+                                cells_names[index].split("_crop", maxsplit=1)[0]
+                            )
+                            extend = "copy"
+
+                        # If rotate cropped cells, create new pixels for out of bounds areas.
+                        elif affine_matrix[i][j, 0, 1] != 0 or affine_matrix[i][j, 1, 0] != 0:
+                            extend = "copy"
+
 
                 # Apply affine matrix transformation.
                 subcells_imgs[i][j] = subcells_imgs[i][j].affine(
@@ -157,7 +192,7 @@ def get_frama_data(bsv3_file, bytepos, cells_imgs, cells_subregions, is_alpha, b
             np.zeros((canvas_dim[1], canvas_dim[0], 4)), interpretation="srgb"
         )
 
-        return (canvas_img, subcells_imgs, tlc, f.tell())
+        return (canvas_img, subcells_imgs, subcells_names, subcells_layers, tlc, f.tell())
 
 
 def get_states(bsv3_file, bytepos):
@@ -181,16 +216,48 @@ def get_states(bsv3_file, bytepos):
         return (statenames, stateitems)
 
 
-def frame_iterator(canvas_img, subcells_imgs, tlc):
+def frame_iterator(canvas_img, subcells_imgs, subcells_names, subcells_layers, tlc):
     for i, subcells in zip(range(len(subcells_imgs)), subcells_imgs):
         if len(subcells) == 0:
             yield canvas_img
             continue
 
+        group_layers = set()
+        compose_imgs = []
+        compose_x = []
+        compose_y = []
+        for j, subcell_img in zip(reversed(range(len(subcells))), reversed(subcells)):
+            x = int(tlc[i][0, j])
+            y = int(tlc[i][1, j])
+            subcellname_split = subcells_names[i][j].split("_crop", maxsplit=1)
+            subcellname = subcellname_split[0]
+            if subcellname in subcells_layers[i]:
+                if subcellname not in group_layers:
+                    group_layers.add(subcellname)
+                    compose_imgs.append(
+                        canvas_img.copy().composite2(subcell_img, "over", x=x, y=y)
+                    )
+                    compose_x.append(0)
+                    compose_y.append(0)
+                else:
+                    base_mask = compose_imgs[-1] > 0
+                    overlay_mask = subcell_img > 0
+
+                    compose_imgs[-1] = base_mask.composite(
+                        [overlay_mask, compose_imgs[-1], subcell_img],
+                        mode=["dest-out", "in", "over"],
+                        x=[x, 0, x],
+                        y=[y, 0, y],
+                    )
+            else:
+                compose_imgs.append(subcell_img)
+                compose_x.append(x)
+                compose_y.append(y)
+
         yield canvas_img.composite(
-            list(reversed(subcells)),
+            compose_imgs,
             mode="over",
-            x=list(reversed(tlc[i][0, ...])),
-            y=list(reversed(tlc[i][1, ...])),
+            x=compose_x,
+            y=compose_y,
             premultiplied=False,
         )
