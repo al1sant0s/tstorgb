@@ -41,7 +41,7 @@ def bsv3_parser(bsv3_file):
                 return (None, list(), list(), set(), False)
 
             # Get cells.
-            cells_imgs, cells_subregions, cells_names, bytepos = crop_cells(
+            cells_imgs, cells_subregions, bytepos = crop_cells(
                 bsv3_file, bytepos=f.tell(), rgb_img=rgb_img, cellnumber=cellnumber
             )
             f.seek(bytepos)
@@ -51,8 +51,8 @@ def bsv3_parser(bsv3_file):
             used_blocks = (1 if check == 771 else blocks)
 
             # Get base frame data used to build the frames later.
-            canvas_img, subcells_imgs, subcells_names, subcells_layers, tlc, bytepos = get_frama_data(
-                bsv3_file, f.tell(), cells_imgs, cells_subregions, cells_names, is_alpha, blocks = used_blocks, check = check
+            canvas_img, subcells_imgs, tlc, bytepos = get_frama_data(
+                bsv3_file, f.tell(), cells_imgs, cells_subregions, is_alpha, blocks = used_blocks, check = check
             )
             f.seek(bytepos)
 
@@ -62,30 +62,26 @@ def bsv3_parser(bsv3_file):
 
                 # Get frames items and build frames data from base frame data.
                 frames_items = [list() for _ in range(blocks)]
-                frames_items_names = [list() for _ in range(blocks)]
-                frames_items_layers = [subcells_layers for _ in range(blocks)]
                 frames_items_tlc = [np.array([]) for _ in range(blocks)]
                 for i in range(blocks):
                     subcells = int.from_bytes(f.read(2), byteorder="little", signed=False)
                     f.seek(f.tell() + 1)  # extra byte to ignore.
 
                     frames_items[i] = [Image.black(1, 1) for _ in range(subcells)]  # type: ignore
-                    frames_items_names[i] = ["" for _ in range(subcells)]
                     frames_items_tlc[i] = np.zeros((2, subcells))
                     for j in range(subcells):
                         index = int.from_bytes(f.read(2), byteorder="little", signed=False)
                         frames_items[i][j] = subcells_imgs[0][index].copy()
-                        frames_items_names[i][j] = subcells_names[0][index]
                         frames_items_tlc[i][..., j] = tlc[0][..., index]
 
                 # Build frames from gathered data.
                 frames = frame_iterator(
-                    canvas_img, frames_items, frames_items_names, frames_items_layers, frames_items_tlc
+                    canvas_img, frames_items, frames_items_tlc
                 )
             else:
                 # Build frames from gathered data.
                 frames = frame_iterator(
-                    canvas_img, subcells_imgs, subcells_names, subcells_layers, tlc
+                    canvas_img, subcells_imgs, tlc
                 )
 
             # Get states info.

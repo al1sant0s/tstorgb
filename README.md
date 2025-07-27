@@ -124,6 +124,22 @@ When a file corresponding to an entity doesn't specify a variation (a filename w
 tstorgb --group path/to/rgb_dir path/to/destination
 ```
 
+## Delete files after conversion
+
+Pass the --delete option to remove the original files after conversion.
+
+```
+tstorgb --delete path/to/rgb_dir path/to/destination
+```
+
+## Produce only the first frame
+
+Pass the --first_only option to produce only the first frame for the bsv3 files.
+
+```
+tstorgb --first_ony path/to/rgb_dir path/to/destination
+```
+
 ## Short options
 
 
@@ -147,4 +163,16 @@ tstorgb -e webp path/to/Images path/to/sprites
 * --group [-g]
 ```shell
 tstorgb -g path/to/Images path/to/sprites
+```
+
+* --delete [-d]
+```shell
+tstorgb -d path/to/Images path/to/sprites
+```
+
+
+* --first_only [-f]
+```
+```shell
+tstorgb --first_ony path/to/rgb_dir path/to/destination
 ```

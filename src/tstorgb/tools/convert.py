@@ -1,4 +1,5 @@
 import argparse
+import os
 from pathlib import Path
 from zipfile import ZipFile, is_zipfile
 from pyvips import Image, GValue, cache_set_max
@@ -48,6 +49,20 @@ def main():
     parser.add_argument(
         "--disable_shadows",
         help="If this option is enabled, shadows from bcell files will be ignored.",
+        action="store_true",
+    )
+
+    parser.add_argument(
+        "-d",
+        "--delete",
+        help="Delete files after conversion.",
+        action="store_true",
+    )
+
+    parser.add_argument(
+        "-f",
+        "--first_only",
+        help="Produce the first frame only.",
         action="store_true",
     )
 
@@ -247,6 +262,12 @@ def main():
                             f"[{i + 1}/{framenumber}]",
                         )
 
+                # Remove bcell and rgb files.
+                if args.delete is True:
+                        os.remove(bcell_file)
+                        for file in bcell_file.parent.glob(f"{bcell_file.stem}_image*.rgb"):
+                            os.remove(file)
+
         else:
             n += len(list(directory.glob("**/*.bcell")))
 
@@ -329,18 +350,45 @@ def main():
                         )
 
                     else:
-                        for i in range(t):
+                        # Save only first frame if requested.
+                        if args.first_only is True:
                             next(frames).write_to_file(  # type: ignore
                                 Path(
                                     dest,
-                                    f"{i}.{args.output_extension}",
+                                    f"0.{args.output_extension}",
                                 ),
                                 Q=args.image_quality,
                             )
+                            # Discard the rest of the frames.
+                            for _ in range(t - 1):
+                                next(frames) # type: ignore
+
                             report_progress(
                                 progress_str(n, total, bsv3_file.stem, "bsv3"),
-                                f"[{i + 1 + sum(stateitems[:u])}/{framenumber}]",
+                                f"[{1 + sum(stateitems[:u])}/{framenumber}]",
                             )
+
+                        else:
+                            for i in range(t):
+                                next(frames).write_to_file(  # type: ignore
+                                    Path(
+                                        dest,
+                                        f"{i}.{args.output_extension}",
+                                    ),
+                                    Q=args.image_quality,
+                                )
+                                report_progress(
+                                    progress_str(n, total, bsv3_file.stem, "bsv3"),
+                                    f"[{i + 1 + sum(stateitems[:u])}/{framenumber}]",
+                                )
+
+
+                # Remove bsv3 and rgb file.
+                if args.delete is True:
+                        os.remove(bsv3_file)
+                        rgb_file = Path(bsv3_file.parent, bsv3_file.stem + ".rgb")
+                        if rgb_file.exists():
+                            os.remove(rgb_file)
 
         else:
             n += len(list(directory.glob("**/*.bsv3")))
@@ -384,5 +432,8 @@ def main():
                 Path(target, f"{rgb_file.stem}.{args.output_extension}"),
                 Q=args.image_quality,
             )
+
+            if args.delete is True:
+                os.remove(rgb_file)
 
     print("\n\n--- JOB COMPLETED!!! ---\n\n")
