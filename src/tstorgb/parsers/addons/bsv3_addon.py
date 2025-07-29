@@ -190,7 +190,6 @@ def frame_iterator(canvas_img, subcells_imgs, tlc):
         yield canvas_img.composite(
             list(reversed(subcells)),
             mode="over",
-            x=list(reversed(tlc[i][0, ...])),
-            y=list(reversed(tlc[i][1, ...])),
-            premultiplied=False,
+            x=list(reversed(np.array(tlc[i][0, ...], dtype=int))),
+            y=list(reversed(np.array(tlc[i][1, ...], dtype=int))),
         )
