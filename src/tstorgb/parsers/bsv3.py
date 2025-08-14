@@ -10,7 +10,7 @@ from tstorgb.parsers.addons.bsv3_addon import (
 )
 
 
-def bsv3_parser(bsv3_file):
+def bsv3_parser(bsv3_file, subsample_factor):
     with open(bsv3_file, "rb") as f:
         bsv3_set = set()
 
@@ -41,8 +41,8 @@ def bsv3_parser(bsv3_file):
                 return (None, list(), list(), set(), False)
 
             # Get cells.
-            cells_imgs, cells_subregions, bytepos = crop_cells(
-                bsv3_file, bytepos=f.tell(), rgb_img=rgb_img, cellnumber=cellnumber
+            cells_imgs, bytepos = crop_cells(
+                bsv3_file, bytepos=f.tell(), rgb_img=rgb_img, cellnumber=cellnumber, subsample_factor=subsample_factor
             )
             f.seek(bytepos)
 
@@ -52,7 +52,7 @@ def bsv3_parser(bsv3_file):
 
             # Get base frame data used to build the frames later.
             canvas_dim, subcells_imgs, tlc, bytepos = get_frama_data(
-                bsv3_file, f.tell(), cells_imgs, cells_subregions, is_alpha, blocks = used_blocks, check = check
+                bsv3_file, f.tell(), cells_imgs, is_alpha, subsample_factor, blocks = used_blocks, check = check
             )
             f.seek(bytepos)
 
@@ -76,12 +76,12 @@ def bsv3_parser(bsv3_file):
 
                 # Build frames from gathered data.
                 frames = frame_iterator(
-                    canvas_dim, rgb_img.interpretation, frames_items, frames_items_tlc
+                    canvas_dim, rgb_img.interpretation, frames_items, frames_items_tlc, subsample_factor
                 )
             else:
                 # Build frames from gathered data.
                 frames = frame_iterator(
-                    canvas_dim, rgb_img.interpretation, subcells_imgs, tlc
+                    canvas_dim, rgb_img.interpretation, subcells_imgs, tlc, subsample_factor
                 )
 
             # Get states info.

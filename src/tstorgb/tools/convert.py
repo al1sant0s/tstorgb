@@ -75,6 +75,14 @@ def main():
     )
 
     parser.add_argument(
+        "-s",
+        "--subsample",
+        help="The higher this value, the more accurate the image will be. Especially in semi-translucent areas. Be aware, however, that this affects performance.",
+        default=50,
+        type=int,
+    )
+
+    parser.add_argument(
         "-e",
         "--output_extension",
         help="""
@@ -280,7 +288,7 @@ def main():
             for bsv3_file in directory.glob("**/*.bsv3"):
                 n += 1
                 frames, statenames, stateitems, new_set, success = bsv3_parser(
-                    bsv3_file,
+                    bsv3_file, args.subsample
                 )
 
                 framenumber = sum(stateitems)

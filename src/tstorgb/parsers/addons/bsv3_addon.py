@@ -1,15 +1,14 @@
 import numpy as np
 from pyvips import Image, Interpolate
 
-bicubic_interp = Interpolate.new("bicubic")
+bicubic_interp = Interpolate.new("bilinear")
 
 
-def crop_cells(bsv3_file, bytepos, rgb_img, cellnumber):
+def crop_cells(bsv3_file, bytepos, rgb_img, cellnumber, subsample_factor):
     with open(bsv3_file, "rb") as f:
         f.seek(bytepos)
 
         cells_imgs = [Image.black(1, 1) for _ in range(cellnumber)]  # type: ignore
-        cells_subregions = [np.zeros(4) for _ in range(cellnumber)]
 
         # Get cells.
         for i in range(cellnumber):
@@ -24,33 +23,12 @@ def crop_cells(bsv3_file, bytepos, rgb_img, cellnumber):
             w = max(1, int(regions[2]))
             h = max(1, int(regions[3]))
 
-            cells_imgs[i] = rgb_img.crop(x, y, w, h)
 
-            # Check 4 edges.
-            dx = 0
-            dy = 0
-            dw = 0
-            dh = 0
+            cells_imgs[i] = rgb_img.crop(x, y, w, h).resize(subsample_factor, kernel = "cubic")
 
-            if x - 1 >= 0 and rgb_img[3].crop(x - 1, y, 1, h).maxpos()[0] > 0:
-                dx -= 1
-                dw += 1
-            if x + w < rgb_img.width and rgb_img[3].crop(x + w, y, 1, h).maxpos()[0] > 0:
-                dw += 1
+        return (cells_imgs, f.tell())
 
-            if y - 1 >= 0 and rgb_img[3].crop(x, y - 1, w, 1).maxpos()[0] > 0:
-                dy -= 1
-                dh += 1
-
-            if y + h < rgb_img.height and rgb_img[3].crop(x, y + h, w, 1).maxpos()[0] > 0:
-                dh += 1
-
-            cells_imgs[i] = rgb_img.crop(x + dx, y + dy, w + dw, h + dh)
-            cells_subregions[i] = np.array([-dx, -dy, dw, dh], dtype=int)
-
-        return (cells_imgs, cells_subregions, f.tell())
-
-def get_frama_data(bsv3_file, bytepos, cells_imgs, cells_subregions, is_alpha, blocks, check):
+def get_frama_data(bsv3_file, bytepos, cells_imgs, is_alpha, subsample_factor, blocks, check):
     with open(bsv3_file, "rb") as f:
         f.seek(bytepos)
 
@@ -93,7 +71,7 @@ def get_frama_data(bsv3_file, bytepos, cells_imgs, cells_subregions, is_alpha, b
                 # Get top left corner.
                 tlc[i][..., j] = np.frombuffer(
                     f.read(8), dtype=np.float32, count=2
-                ).transpose()
+                ).transpose() * subsample_factor
 
                 # Get coefficients for the affine matrix.
                 # [sx rx]
@@ -109,6 +87,7 @@ def get_frama_data(bsv3_file, bytepos, cells_imgs, cells_subregions, is_alpha, b
                 )
                 extend = "background" # Affine matrix default extend method.
 
+
                 # Get alpha.
                 if is_alpha == 1:
                     alpha[i][j] = int.from_bytes(
@@ -118,41 +97,22 @@ def get_frama_data(bsv3_file, bytepos, cells_imgs, cells_subregions, is_alpha, b
                     alpha[i][j] = 255
 
                 # Process subcells.
-                subcells_imgs[i][j] = cells_imgs[index]
+                if affine_matrix[i][j, 0, 0] < 0:
+                    canvas_img = Image.black(cells_imgs[index].width + 1, cells_imgs[index].height, bands = 4)
+                    subcells_imgs[i][j] = canvas_img.copy(interpretation="srgb").composite2(cells_imgs[index], "over", x = 1, y = 0)
+                else:
+                    subcells_imgs[i][j] = cells_imgs[index]
+
+                # Apply alpha value.
                 subcells_imgs[i][j] *= [1, 1, 1, alpha[i][j] / 255]
-
-                alpha_band = subcells_imgs[i][j][3]
-
-                if any(cells_subregions[index]):
-                    if alpha_band.avg() < 200 or alpha_band.maxpos()[0] < 255:
-                        cells_imgs[index] = cells_imgs[index].crop(cells_subregions[index][0], cells_subregions[index][1], 
-                        cells_imgs[index].width - cells_subregions[index][2], cells_imgs[index].height - cells_subregions[index][3])
-
-                        cells_subregions[index][0] = 0
-                        cells_subregions[index][1] = 0
-                        cells_subregions[index][2] = 0
-                        cells_subregions[index][3] = 0
-
-                        subcells_imgs[i][j] = cells_imgs[index]
-                        subcells_imgs[i][j] *= [1, 1, 1, alpha[i][j] / 255]
-
 
                 # Apply affine matrix transformation.
                 subcells_imgs[i][j] = subcells_imgs[i][j].affine(
-                    affine_matrix[i][j, ...].flatten().tolist(), interpolate = bicubic_interp, extend=extend, 
+                    affine_matrix[i][j, ...].flatten().tolist(), interpolate = bicubic_interp, extend=extend,
                 )
-
-                # Adjust coordinates.
-                if np.linalg.det(affine_matrix[i][j, ...]) > 0:
-                    tlc[i][0, j] = np.round(tlc[i][0, j]) - cells_subregions[index][0]
-                else:
-                    tlc[i][0, j] = np.floor(tlc[i][0, j]) - cells_subregions[index][2] + cells_subregions[index][0]
-                tlc[i][1, j] = np.floor(tlc[i][1, j]) - cells_subregions[index][1]
 
                 # Get bottom right corner.
-                brc[i][..., j] = tlc[i][..., j] + np.array(
-                    [subcells_imgs[i][j].width, subcells_imgs[i][j].height]
-                )
+                brc[i][..., j] = tlc[i][..., j] + np.array([subcells_imgs[i][j].width, subcells_imgs[i][j].height])
 
         # Standard canvas dimensions.
         canvas_dim = np.array([1, 1], dtype=int)
@@ -169,7 +129,6 @@ def get_frama_data(bsv3_file, bytepos, cells_imgs, cells_subregions, is_alpha, b
             canvas_dim = np.array(np.ceil(d[..., -1] - c[..., 0]), dtype=int)
 
             # Correct coordinates.
-            print(canvas_dim)
             tlc = [tlc[i] - np.array(c[..., 0]).reshape(2, 1) for i in range(blocks)]
 
 
@@ -197,26 +156,25 @@ def get_states(bsv3_file, bytepos):
         return (statenames, stateitems)
 
 
-def frame_iterator(canvas_dim, interpretation, subcells_imgs, tlc):
+def frame_iterator(canvas_dim, interpretation, subcells_imgs, tlc, subsample_factor):
 
 
     # Create a canvas.
-    canvas_img = Image.new_from_array(
-        np.zeros((canvas_dim[1], canvas_dim[0], 4)), interpretation=interpretation
-    )
-
+    super_canvas = Image.black(canvas_dim[0], canvas_dim[1], bands = 4).copy(interpretation=interpretation)
+    normal_canvas = super_canvas.resize(1/subsample_factor)
 
     for i, subcells in zip(range(len(subcells_imgs)), subcells_imgs):
         if len(subcells) == 0:
-            yield canvas_img
+            yield normal_canvas
             continue
 
         else:
-            yield canvas_img.composite(
+
+            yield super_canvas.composite(
                 list(subcells),
                 mode="dest-over",
                 x=list(np.array(tlc[i][0, ...], dtype=int)),
                 y=list(np.array(tlc[i][1, ...], dtype=int)),
                 premultiplied=False
-            )
+            ).subsample(subsample_factor, subsample_factor)
 

@@ -77,9 +77,7 @@ def bcell_10(bcell_file):
     d.sort()
 
     canvas_dim = np.array(d[..., -1] - c[..., 0], dtype=int)
-    canvas_img = Image.new_from_array(
-        np.zeros((canvas_dim[1], canvas_dim[0], 4)), interpretation="srgb"
-    )
+    canvas_img = Image.black(canvas_dim[0], canvas_dim[1], bands = 4).copy(interpretation="srgb")
 
     # Correct coordinates.
     tlc = [tlc[i] - np.array(c[..., 0]).reshape(2, 1) for i in range(blocks)]
@@ -152,9 +150,7 @@ def bcell_11(bcell_file):
     d.sort()
 
     canvas_dim = np.array(d[..., -1] - c[..., 0], dtype=int)
-    canvas_img = Image.new_from_array(
-        np.zeros((canvas_dim[1], canvas_dim[0], 4)), interpretation="srgb"
-    )
+    canvas_img = Image.black(canvas_dim[0], canvas_dim[1], bands = 4).copy(interpretation="srgb")
 
     # Correct coordinates.
     tlc = [tlc[i] - np.array(c[..., 0]).reshape(2, 1) for i in range(blocks)]
@@ -322,9 +318,7 @@ def bcell_13(bcell_file, is_alpha, disable_shadows=False):
         d.sort()
 
         canvas_dim = np.array(np.ceil(d[..., -1] - c[..., 0]), dtype=int)
-        canvas_img = Image.new_from_array(
-            np.zeros((canvas_dim[1], canvas_dim[0], 4)), interpretation="srgb"
-        )
+        canvas_img = Image.black(canvas_dim[0], canvas_dim[1], bands = 4).copy(interpretation="srgb")
 
         # Correct coordinates.
         tlc = [tlc[i] - np.array(c[..., 0]).reshape(2, 1) for i in range(blocks)]
