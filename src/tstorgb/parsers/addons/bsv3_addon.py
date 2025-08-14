@@ -25,6 +25,7 @@ def crop_cells(bsv3_file, bytepos, rgb_img, cellnumber):
             h = max(1, int(regions[3]))
 
             cells_imgs[i] = rgb_img.crop(x, y, w, h)
+
             # Check 4 edges.
             dx = 0
             dy = 0
@@ -43,7 +44,6 @@ def crop_cells(bsv3_file, bytepos, rgb_img, cellnumber):
 
             if y + h < rgb_img.height and rgb_img[3].crop(x, y + h, w, 1).maxpos()[0] > 0:
                 dh += 1
-
 
             cells_imgs[i] = rgb_img.crop(x + dx, y + dy, w + dw, h + dh)
             cells_subregions[i] = np.array([-dx, -dy, dw, dh], dtype=int)
@@ -118,8 +118,23 @@ def get_frama_data(bsv3_file, bytepos, cells_imgs, cells_subregions, is_alpha, b
                     alpha[i][j] = 255
 
                 # Process subcells.
-                subcells_imgs[i][j] = cells_imgs[index].copy()
+                subcells_imgs[i][j] = cells_imgs[index]
                 subcells_imgs[i][j] *= [1, 1, 1, alpha[i][j] / 255]
+
+                alpha_band = subcells_imgs[i][j][3]
+
+                if any(cells_subregions[index]):
+                    if alpha_band.avg() < 200 or alpha_band.maxpos()[0] < 255:
+                        cells_imgs[index] = cells_imgs[index].crop(cells_subregions[index][0], cells_subregions[index][1], 
+                        cells_imgs[index].width - cells_subregions[index][2], cells_imgs[index].height - cells_subregions[index][3])
+
+                        cells_subregions[index][0] = 0
+                        cells_subregions[index][1] = 0
+                        cells_subregions[index][2] = 0
+                        cells_subregions[index][3] = 0
+
+                        subcells_imgs[i][j] = cells_imgs[index]
+                        subcells_imgs[i][j] *= [1, 1, 1, alpha[i][j] / 255]
 
 
                 # Apply affine matrix transformation.
