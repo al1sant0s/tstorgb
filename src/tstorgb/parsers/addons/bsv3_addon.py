@@ -1,5 +1,7 @@
 import numpy as np
-from pyvips import Image
+from pyvips import Image, Interpolate
+
+bicubic_interp = Interpolate.new("bicubic")
 
 
 def crop_cells(bsv3_file, bytepos, rgb_img, cellnumber):
@@ -7,7 +9,7 @@ def crop_cells(bsv3_file, bytepos, rgb_img, cellnumber):
         f.seek(bytepos)
 
         cells_imgs = [Image.black(1, 1) for _ in range(cellnumber)]  # type: ignore
-        cells_subregions = [np.array([]) for _ in range(cellnumber)]
+        cells_subregions = [np.zeros(4) for _ in range(cellnumber)]
 
         # Get cells.
         for i in range(cellnumber):
@@ -22,6 +24,7 @@ def crop_cells(bsv3_file, bytepos, rgb_img, cellnumber):
             w = max(1, int(regions[2]))
             h = max(1, int(regions[3]))
 
+            cells_imgs[i] = rgb_img.crop(x, y, w, h)
             # Check 4 edges.
             dx = 0
             dy = 0
@@ -41,11 +44,11 @@ def crop_cells(bsv3_file, bytepos, rgb_img, cellnumber):
             if y + h < rgb_img.height and rgb_img[3].crop(x, y + h, w, 1).maxpos()[0] > 0:
                 dh += 1
 
+
             cells_imgs[i] = rgb_img.crop(x + dx, y + dy, w + dw, h + dh)
             cells_subregions[i] = np.array([-dx, -dy, dw, dh], dtype=int)
 
         return (cells_imgs, cells_subregions, f.tell())
-
 
 def get_frama_data(bsv3_file, bytepos, cells_imgs, cells_subregions, is_alpha, blocks, check):
     with open(bsv3_file, "rb") as f:
@@ -71,10 +74,10 @@ def get_frama_data(bsv3_file, bytepos, cells_imgs, cells_subregions, is_alpha, b
                 Image.new_from_array(np.zeros((1, 1, 4)), interpretation="srgb")
                 for _ in range(subcellnumber)
             ]
-            tlc[i] = np.zeros((2, subcellnumber), dtype=np.float32)
-            brc[i] = np.zeros((2, subcellnumber), dtype=np.float32)
+            tlc[i] = np.zeros((2, subcellnumber), dtype=np.float64)
+            brc[i] = np.zeros((2, subcellnumber), dtype=np.float64)
             affine_matrix[i] = np.array(
-                [np.identity(2)] * subcellnumber, dtype=np.float32
+                [np.identity(2)] * subcellnumber, dtype=np.float64
             )
             alpha[i] = np.zeros(subcellnumber, dtype=int)
 
@@ -118,18 +121,18 @@ def get_frama_data(bsv3_file, bytepos, cells_imgs, cells_subregions, is_alpha, b
                 subcells_imgs[i][j] = cells_imgs[index].copy()
                 subcells_imgs[i][j] *= [1, 1, 1, alpha[i][j] / 255]
 
+
+                # Apply affine matrix transformation.
+                subcells_imgs[i][j] = subcells_imgs[i][j].affine(
+                    affine_matrix[i][j, ...].flatten().tolist(), interpolate = bicubic_interp, extend=extend, 
+                )
+
                 # Adjust coordinates.
                 if np.linalg.det(affine_matrix[i][j, ...]) > 0:
                     tlc[i][0, j] = np.round(tlc[i][0, j]) - cells_subregions[index][0]
                 else:
                     tlc[i][0, j] = np.floor(tlc[i][0, j]) - cells_subregions[index][2] + cells_subregions[index][0]
-
                 tlc[i][1, j] = np.floor(tlc[i][1, j]) - cells_subregions[index][1]
-
-                # Apply affine matrix transformation.
-                subcells_imgs[i][j] = subcells_imgs[i][j].affine(
-                    affine_matrix[i][j, ...].flatten().tolist(), extend=extend
-                )
 
                 # Get bottom right corner.
                 brc[i][..., j] = tlc[i][..., j] + np.array(
@@ -151,13 +154,11 @@ def get_frama_data(bsv3_file, bytepos, cells_imgs, cells_subregions, is_alpha, b
             canvas_dim = np.array(np.ceil(d[..., -1] - c[..., 0]), dtype=int)
 
             # Correct coordinates.
+            print(canvas_dim)
             tlc = [tlc[i] - np.array(c[..., 0]).reshape(2, 1) for i in range(blocks)]
 
-        canvas_img = Image.new_from_array(
-            np.zeros((canvas_dim[1], canvas_dim[0], 4)), interpretation="srgb"
-        )
 
-        return (canvas_img, subcells_imgs, tlc, f.tell())
+        return (canvas_dim, subcells_imgs, tlc, f.tell())
 
 
 def get_states(bsv3_file, bytepos):
@@ -181,15 +182,26 @@ def get_states(bsv3_file, bytepos):
         return (statenames, stateitems)
 
 
-def frame_iterator(canvas_img, subcells_imgs, tlc):
+def frame_iterator(canvas_dim, interpretation, subcells_imgs, tlc):
+
+
+    # Create a canvas.
+    canvas_img = Image.new_from_array(
+        np.zeros((canvas_dim[1], canvas_dim[0], 4)), interpretation=interpretation
+    )
+
+
     for i, subcells in zip(range(len(subcells_imgs)), subcells_imgs):
         if len(subcells) == 0:
             yield canvas_img
             continue
 
-        yield canvas_img.composite(
-            list(reversed(subcells)),
-            mode="over",
-            x=list(reversed(np.array(tlc[i][0, ...], dtype=int))),
-            y=list(reversed(np.array(tlc[i][1, ...], dtype=int))),
-        )
+        else:
+            yield canvas_img.composite(
+                list(subcells),
+                mode="dest-over",
+                x=list(np.array(tlc[i][0, ...], dtype=int)),
+                y=list(np.array(tlc[i][1, ...], dtype=int)),
+                premultiplied=False
+            )
+

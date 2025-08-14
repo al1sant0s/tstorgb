@@ -51,7 +51,7 @@ def bsv3_parser(bsv3_file):
             used_blocks = (1 if check == 771 else blocks)
 
             # Get base frame data used to build the frames later.
-            canvas_img, subcells_imgs, tlc, bytepos = get_frama_data(
+            canvas_dim, subcells_imgs, tlc, bytepos = get_frama_data(
                 bsv3_file, f.tell(), cells_imgs, cells_subregions, is_alpha, blocks = used_blocks, check = check
             )
             f.seek(bytepos)
@@ -76,12 +76,12 @@ def bsv3_parser(bsv3_file):
 
                 # Build frames from gathered data.
                 frames = frame_iterator(
-                    canvas_img, frames_items, frames_items_tlc
+                    canvas_dim, rgb_img.interpretation, frames_items, frames_items_tlc
                 )
             else:
                 # Build frames from gathered data.
                 frames = frame_iterator(
-                    canvas_img, subcells_imgs, tlc
+                    canvas_dim, rgb_img.interpretation, subcells_imgs, tlc
                 )
 
             # Get states info.
