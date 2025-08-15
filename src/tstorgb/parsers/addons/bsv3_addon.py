@@ -8,7 +8,7 @@ def crop_cells(bsv3_file, bytepos, rgb_img, cellnumber, subsample_factor):
         cells_imgs = [Image.black(1, 1) for _ in range(cellnumber)]  # type: ignore
 
         # Resize rgb image by subsample_factor.
-        rgb_img = rgb_img.resize(subsample_factor, kernel = "cubic")
+        rgb_img = rgb_img.resize(subsample_factor, kernel = "linear")
 
         # Get cells.
         for i in range(cellnumber):
