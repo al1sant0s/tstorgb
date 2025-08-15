@@ -39,23 +39,23 @@ def rgb_parser(file, byte_seek=0):
                 buffer = np.frombuffer(
                     f.read(), dtype=np.uint16, count=width * height
                 ).reshape(height, width)
-                pixel_data[..., 0] = (
-                    np.bitwise_and(np.right_shift(buffer, 12), 15) * 255 / 15
+                pixel_data[..., 0] = np.bitwise_and(
+                    np.right_shift(buffer, 0), 255
                 )  # Red
-                pixel_data[..., 1] = (
-                    np.bitwise_and(np.right_shift(buffer, 12), 15) * 255 / 15
+                pixel_data[..., 1] = np.bitwise_and(
+                    np.right_shift(buffer, 0), 255
                 )  # Green
-                pixel_data[..., 2] = (
-                    np.bitwise_and(np.right_shift(buffer, 12), 15) * 255 / 15
+                pixel_data[..., 2] = np.bitwise_and(
+                    np.right_shift(buffer, 0), 255
                 )  # Blue
-                pixel_data[..., 3] = (
-                    np.bitwise_and(np.right_shift(buffer, 4), 15) * 255 / 15
+                pixel_data[..., 3] = np.bitwise_and(
+                    np.right_shift(buffer, 8), 255
                 )  # Alpha
 
                 # Get base image
                 return Image.new_from_array(
                     pixel_data, interpretation="srgb"
-                ).unpremultiply()
+                )
 
             elif check == 0:
                 buffer = np.frombuffer(
