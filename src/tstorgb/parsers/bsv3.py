@@ -34,7 +34,7 @@ def bsv3_parser(bsv3_file, subsample_factor):
                     bsv3_file.parent, f.read(skip).decode("utf8")[0:-1].lower()
                 )
 
-            rgb_img = rgb_parser(rgb_img_path)
+            rgb_img = rgb_parser(rgb_img_path).premultiply()
             bsv3_set.add(rgb_img_path.name)
 
             if rgb_img is False:
