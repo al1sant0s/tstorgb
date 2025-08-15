@@ -172,7 +172,6 @@ tstorgb -d path/to/Images path/to/sprites
 
 
 * --first_only [-f]
-```
 ```shell
 tstorgb --first_ony path/to/rgb_dir path/to/destination
 ```
