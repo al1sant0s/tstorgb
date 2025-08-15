@@ -287,122 +287,124 @@ def main():
         if args.disable_bsv3 is False:
             for bsv3_file in directory.glob("**/*.bsv3"):
                 n += 1
-                frames, statenames, stateitems, new_set, success = bsv3_parser(
-                    bsv3_file, args.subsample
-                )
-
-                framenumber = sum(stateitems)
-
-
-                # Unsupported or invalid bsv3 file.
-                if success is False:
-                    # Clear line.
-                    print(150 * " ", end="\r")
-                    print(
-                        f"Unknown bsv3 signature, invalid or missing rgb file. Skipping this file -> {bsv3_file.name}!"
+                try:
+                    frames, statenames, stateitems, new_set, success = bsv3_parser(
+                        bsv3_file, args.subsample
                     )
-                    continue
 
-                bsv3_set = bsv3_set.union(new_set)
+                    framenumber = sum(stateitems)
 
-                # Decide if animations should be grouped by entity.
-                if args.group is True:
-                    entity = bsv3_file.stem.split("_", maxsplit=1)
-                    if len(entity) == 2:
-                        target = Path(args.output_dir, entity[0], entity[1])
-                    else:
-                        target = Path(args.output_dir, entity[0], "_default")
 
-                else:
-                    target = Path(args.output_dir, bsv3_file.stem)
-
-                target.mkdir(parents=True, exist_ok=True)
-
-                # How the frames will be saved.
-                for s, t, u in zip(statenames, stateitems, range(len(stateitems))):
-                    dest = Path(target, s)
-                    dest.mkdir(exist_ok=True)
-                    if args.sequential is True:
-                        report_frames = (
-                            report_progress(
-                                progress_str(n, total, bsv3_file.stem, "bsv3"),
-                                f"[{i + 1 + sum(stateitems[:u])}/{framenumber}]",
-                            )
-                            for i in range(t)
+                    # Unsupported or invalid bsv3 file.
+                    if success is False:
+                        # Clear line.
+                        print(150 * " ", end="\r")
+                        print(
+                            f"Unknown bsv3 signature, invalid or missing rgb file. Skipping this file -> {bsv3_file.name}!"
                         )
+                        continue
 
-                        animation_frames = (
-                            Image.new_from_buffer(  # type: ignore
-                                next(frames).write_to_buffer(  # type: ignore
-                                    f".{args.output_extension}",
-                                    Q=args.image_quality,
-                                ),
-                                options="",
-                                access="sequential",
-                            )
-                            for _ in report_frames
-                        )
+                    bsv3_set = bsv3_set.union(new_set)
 
-                        animation = next(animation_frames).pagejoin(  # type: ignore
-                            list(animation_frames)
-                        )
-
-                        animation.set_type(
-                            GValue.array_int_type,
-                            "delay",
-                            [args.sequential_delay for _ in range(framenumber)],
-                        )
-
-                        animation.write_to_file(  # type: ignore
-                            Path(
-                                dest,
-                                f"{s}.{args.output_extension}",
-                            ),
-                            Q=args.image_quality,
-                        )
-
-                    else:
-                        # Save only first frame if requested.
-                        if args.first_only is True:
-                            next(frames).write_to_file(  # type: ignore
-                                Path(
-                                    dest,
-                                    f"0.{args.output_extension}",
-                                ),
-                                Q=args.image_quality,
-                            )
-                            # Discard the rest of the frames.
-                            for _ in range(t - 1):
-                                next(frames) # type: ignore
-
-                            report_progress(
-                                progress_str(n, total, bsv3_file.stem, "bsv3"),
-                                f"[{1 + sum(stateitems[:u])}/{framenumber}]",
-                            )
-
+                    # Decide if animations should be grouped by entity.
+                    if args.group is True:
+                        entity = bsv3_file.stem.split("_", maxsplit=1)
+                        if len(entity) == 2:
+                            target = Path(args.output_dir, entity[0], entity[1])
                         else:
-                            for i in range(t):
-                                next(frames).write_to_file(  # type: ignore
-                                    Path(
-                                        dest,
-                                        f"{i}.{args.output_extension}",
-                                    ),
-                                    Q=args.image_quality,
-                                )
+                            target = Path(args.output_dir, entity[0], "_default")
+
+                    else:
+                        target = Path(args.output_dir, bsv3_file.stem)
+
+                    target.mkdir(parents=True, exist_ok=True)
+
+                    # How the frames will be saved.
+                    for s, t, u in zip(statenames, stateitems, range(len(stateitems))):
+                        dest = Path(target, s)
+                        dest.mkdir(exist_ok=True)
+                        if args.sequential is True:
+                            report_frames = (
                                 report_progress(
                                     progress_str(n, total, bsv3_file.stem, "bsv3"),
                                     f"[{i + 1 + sum(stateitems[:u])}/{framenumber}]",
                                 )
+                                for i in range(t)
+                            )
+
+                            animation_frames = (
+                                Image.new_from_buffer(  # type: ignore
+                                    next(frames).write_to_buffer(  # type: ignore
+                                        f".{args.output_extension}",
+                                        Q=args.image_quality,
+                                    ),
+                                    options="",
+                                    access="sequential",
+                                )
+                                for _ in report_frames
+                            )
+
+                            animation = next(animation_frames).pagejoin(  # type: ignore
+                                list(animation_frames)
+                            )
+
+                            animation.set_type(
+                                GValue.array_int_type,
+                                "delay",
+                                [args.sequential_delay for _ in range(framenumber)],
+                            )
+
+                            animation.write_to_file(  # type: ignore
+                                Path(
+                                    dest,
+                                    f"{s}.{args.output_extension}",
+                                ),
+                                Q=args.image_quality,
+                            )
+
+                        else:
+                            # Save only first frame if requested.
+                            if args.first_only is True:
+                                next(frames).write_to_file(  # type: ignore
+                                    Path(
+                                        dest,
+                                        f"0.{args.output_extension}",
+                                    ),
+                                    Q=args.image_quality,
+                                )
+                                # Discard the rest of the frames.
+                                for _ in range(t - 1):
+                                    next(frames) # type: ignore
+
+                                report_progress(
+                                    progress_str(n, total, bsv3_file.stem, "bsv3"),
+                                    f"[{1 + sum(stateitems[:u])}/{framenumber}]",
+                                )
+
+                            else:
+                                for i in range(t):
+                                    next(frames).write_to_file(  # type: ignore
+                                        Path(
+                                            dest,
+                                            f"{i}.{args.output_extension}",
+                                        ),
+                                        Q=args.image_quality,
+                                    )
+                                    report_progress(
+                                        progress_str(n, total, bsv3_file.stem, "bsv3"),
+                                        f"[{i + 1 + sum(stateitems[:u])}/{framenumber}]",
+                                    )
 
 
-                # Remove bsv3 and rgb file.
-                if args.delete is True:
-                    os.remove(bsv3_file)
-                    rgb_file = Path(bsv3_file.parent, bsv3_file.stem + ".rgb")
-                    if rgb_file.exists():
-                        os.remove(rgb_file)
+                    # Remove bsv3 and rgb file.
+                    if args.delete is True:
+                        os.remove(bsv3_file)
+                        rgb_file = Path(bsv3_file.parent, bsv3_file.stem + ".rgb")
+                        if rgb_file.exists():
+                            os.remove(rgb_file)
 
-                continue
+                except:
+                    continue
 
         else:
             n += len(list(directory.glob("**/*.bsv3")))
