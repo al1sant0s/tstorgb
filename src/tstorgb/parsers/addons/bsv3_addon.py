@@ -160,17 +160,16 @@ def frame_iterator(canvas_dim, interpretation, subcells_imgs, tlc, subsample_fac
 
 
     # Create a canvas.
-    super_canvas = Image.black(canvas_dim[0], canvas_dim[1], bands = 4).copy(interpretation=interpretation)
-    normal_canvas = super_canvas.resize(1/subsample_factor)
+    canvas_img = Image.black(canvas_dim[0], canvas_dim[1], bands = 4).copy(interpretation=interpretation)
 
     for i, subcells in zip(range(len(subcells_imgs)), subcells_imgs):
         if len(subcells) == 0:
-            yield normal_canvas
+            yield canvas_img.subsample(subsample_factor, subsample_factor)
             continue
 
         else:
 
-            yield super_canvas.composite(
+            yield canvas_img.composite(
                 list(subcells),
                 mode="dest-over",
                 x=list(np.array(tlc[i][0, ...], dtype=int)),
