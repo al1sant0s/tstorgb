@@ -1,14 +1,14 @@
 import numpy as np
 from pyvips import Image, Interpolate
 
-bicubic_interp = Interpolate.new("bilinear")
-
-
 def crop_cells(bsv3_file, bytepos, rgb_img, cellnumber, subsample_factor):
     with open(bsv3_file, "rb") as f:
         f.seek(bytepos)
 
         cells_imgs = [Image.black(1, 1) for _ in range(cellnumber)]  # type: ignore
+
+        # Resize rgb image by subsample_factor.
+        rgb_img = rgb_img.resize(subsample_factor, kernel = "nearest")
 
         # Get cells.
         for i in range(cellnumber):
@@ -18,13 +18,13 @@ def crop_cells(bsv3_file, bytepos, rgb_img, cellnumber, subsample_factor):
             # Read x, y, width and height.
             regions = np.frombuffer(f.read(8), dtype=np.uint16).reshape(4)
 
-            x = int(regions[0])
-            y = int(regions[1])
-            w = max(1, int(regions[2]))
-            h = max(1, int(regions[3]))
+            x = int(regions[0]) * subsample_factor
+            y = int(regions[1]) * subsample_factor
+            w = max(1, int(regions[2])) * subsample_factor
+            h = max(1, int(regions[3])) * subsample_factor
 
 
-            cells_imgs[i] = rgb_img.crop(x, y, w, h).resize(subsample_factor, kernel = "cubic")
+            cells_imgs[i] = rgb_img.crop(x, y, w, h)
 
         return (cells_imgs, f.tell())
 
@@ -108,7 +108,7 @@ def get_frama_data(bsv3_file, bytepos, cells_imgs, is_alpha, subsample_factor, b
 
                 # Apply affine matrix transformation.
                 subcells_imgs[i][j] = subcells_imgs[i][j].affine(
-                    affine_matrix[i][j, ...].flatten().tolist(), interpolate = bicubic_interp, extend=extend,
+                    affine_matrix[i][j, ...].flatten().tolist(), extend=extend,
                 )
 
                 # Get bottom right corner.
