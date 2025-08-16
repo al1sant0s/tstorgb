@@ -117,16 +117,16 @@ def get_frama_data(bsv3_file, bytepos, cells_imgs, is_alpha, subsample_factor, b
         # Make sure there is at least one subcell to process. Otherwise, the canvas will have 1x1 size.
         subcells_tlc = [tlc[i] for i in range(blocks) if len(subcells_imgs[i]) > 0]
         if len(subcells_tlc) > 0:
-            # Get canvas dimensions.
-            c = np.hstack(subcells_tlc)
-            d = np.hstack([brc[i] for i in range(blocks) if len(subcells_imgs[i]) > 0])
-            c.sort()
-            d.sort()
 
-            canvas_dim = np.array(np.ceil(d[..., -1] - c[..., 0]), dtype=int)
+            # Get canvas dimensions.
+            c = np.hstack(subcells_tlc).min(axis = 1)
+            d = np.hstack([brc[i] for i in range(blocks) if len(subcells_imgs[i]) > 0]).max(axis = 1)
+            canvas_dim = np.array(d - c, dtype = int)
+
 
             # Correct coordinates.
-            tlc = [tlc[i] - np.array(c[..., 0]).reshape(2, 1) for i in range(blocks)]
+            c = c.reshape(2, 1)
+            tlc = [tlc[i] - c for i in range(blocks)]
 
 
         return (canvas_dim, subcells_imgs, tlc, f.tell())
@@ -154,7 +154,6 @@ def get_states(bsv3_file, bytepos):
 
 
 def frame_iterator(canvas_dim, interpretation, subcells_imgs, tlc, subsample_factor):
-
 
     # Create a canvas.
     canvas_img = Image.black(canvas_dim[0], canvas_dim[1], bands = 4).copy(interpretation=interpretation)
