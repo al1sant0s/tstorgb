@@ -8,7 +8,7 @@ def crop_cells(bsv3_file, bytepos, rgb_img, cellnumber, subsample_factor):
         cells_imgs = [Image.black(1, 1) for _ in range(cellnumber)]  # type: ignore
 
         # Resize rgb image by subsample_factor.
-        rgb_img = rgb_img.resize(subsample_factor, kernel = "linear")
+        rgb_img = rgb_img.premultiply().resize(subsample_factor, kernel = "linear").unpremultiply()
 
         # Get cells.
         for i in range(cellnumber):
@@ -97,8 +97,11 @@ def get_frama_data(bsv3_file, bytepos, cells_imgs, is_alpha, subsample_factor, b
                     alpha[i][j] = 255
 
                 # Process subcells.
-                canvas_img = Image.black(cells_imgs[index].width + 1, cells_imgs[index].height, bands = 4)
-                subcells_imgs[i][j] = canvas_img.copy(interpretation="srgb").composite2(cells_imgs[index], "over", x = 1, y = 0)
+                if affine_matrix[i][j, 0, 0] < 0:
+                    canvas_img = Image.black(cells_imgs[index].width + 1, cells_imgs[index].height, bands = 4)
+                    subcells_imgs[i][j] = canvas_img.copy(interpretation="srgb").composite2(cells_imgs[index], "over", x = 1, y = 0)
+                else:
+                    subcells_imgs[i][j] = cells_imgs[index]
 
                 # Apply alpha value.
                 subcells_imgs[i][j] *= [1, 1, 1, alpha[i][j] / 255]
@@ -170,6 +173,5 @@ def frame_iterator(canvas_dim, interpretation, subcells_imgs, tlc, subsample_fac
                 mode="dest-over",
                 x=list(np.array(tlc[i][0, ...], dtype=int)),
                 y=list(np.array(tlc[i][1, ...], dtype=int)),
-                premultiplied=True
             ).subsample(subsample_factor, subsample_factor)
 
