@@ -97,6 +97,14 @@ To produce animated images with a refresh rate of 30 fps, for example:
 tstorgb --search_zip --animated 33 --output_extension webp path/to/Images path/to/sprites
 ```
 
+## Image quality
+
+For lossy image formats like jpeg, the --image_quality argument determines the level of overal quality of the image.
+Its values go from 1 to 100. The following will produce a webp (in lossy mode) with 95% of quality.
+```
+tstorgb --search_zip --image_quality 95 --output_extension web path/to/Images path/to/sprites
+```
+
 ## Grouping images
 
 Set the --group argument to organize the files in subdirectories within the destination directory.
