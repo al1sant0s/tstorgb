@@ -89,11 +89,12 @@ To process bsv3 and bcell files just keep them in the same directory as their co
 
 ## Animated images
 
-The --sequential and --sequential_delay arguments make it possible to produce animated images using specific image formats (e.g. webp). To produce animated images
-with a refresh rate of 30 fps, for example:
+The --animated option makes it possible to produce animated images using specific image formats (e.g. webp).
+The value provided to it must be a positive integer representing the delay in milliseconds between each frame.
+To produce animated images with a refresh rate of 30 fps, for example:
 
 ```
-tstorgb --search_zip --sequential --sequential_delay 33 --output_extension webp path/to/Images path/to/sprites
+tstorgb --search_zip --animated 33 --output_extension webp path/to/Images path/to/sprites
 ```
 
 ## Grouping images
@@ -140,6 +141,18 @@ Pass the --first_only option to produce only the first frame for the bsv3 files.
 tstorgb --first_ony path/to/rgb_dir path/to/destination
 ```
 
+## Select the sub-sampling level
+
+The sub-sampling level impacts directly on image accuracy as well as computational power. Contrary to what the name may imply,
+here sub-sampling works with the following logic: the greater the value the better the images will look at the price of requiring more processing from the machine. 
+Small values like 1 yields images the fastest but can result in unexpected artifacts like gaps in the images.
+The following example utilizes a level of 50 to produce good looking images.
+
+```shell
+tstorgb --subsampling 50 path/to/Images path/to/Sprites
+```
+
+
 ## Short options
 
 
@@ -174,4 +187,14 @@ tstorgb -d path/to/Images path/to/sprites
 * --first_only [-f]
 ```shell
 tstorgb --first_ony path/to/rgb_dir path/to/destination
+```
+
+* --animated [-a]
+```shell
+tstorgb -z -a 33 -e webp path/to/Images path/to/sprites
+```
+
+* --subsampling [-s]
+```shell
+tstorgb -s 50 path/to/Images path/to/Sprites
 ```

@@ -76,7 +76,7 @@ def main():
 
     parser.add_argument(
         "-s",
-        "--subsample",
+        "--subsampling",
         help="The higher this value, the more accurate the image will be. Especially in semi-translucent areas. Be aware, however, that this affects performance.",
         default=50,
         type=int,
@@ -92,22 +92,17 @@ def main():
         """,
         default="png",
     )
+
     parser.add_argument(
-        "--sequential",
+        "-a",
+        "--animated",
         help="""
-        Produce animated images for specific image formats (e.g. webp).
+        Produce animated images for specific image formats (e.g. webp) if a positive value is provided.
+        The value is the delay in miliseconds to wait between frames.
         """,
-        action="store_true",
-    )
-    parser.add_argument(
-        "--sequential_delay",
-        help="""
-        Time delay in miliseconds to wait between frames for the animated images produced with the --sequential argument.
-        """,
-        default=100,
+        default=0,
         type=int,
     )
-
 
     parser.add_argument(
         "-g",
@@ -218,7 +213,7 @@ def main():
                     target.mkdir(parents=True, exist_ok=True)
 
                     # How the frames will be saved.
-                    if args.sequential is True:
+                    if args.animated > 0:
                         report_frames = (
                             report_progress(
                                 progress_str(n, total, bcell_file.stem, "bcell"),
@@ -246,7 +241,7 @@ def main():
                         animation.set_type(
                             GValue.array_int_type,
                             "delay",
-                            [args.sequential_delay for _ in range(framenumber)],
+                            [args.animated for _ in range(framenumber)],
                         )
 
                         animation.write_to_file(  # type: ignore
@@ -289,7 +284,7 @@ def main():
                 n += 1
                 try:
                     frames, statenames, stateitems, new_set, success = bsv3_parser(
-                        bsv3_file, args.subsample
+                        bsv3_file, args.subsampling
                     )
 
                     framenumber = sum(stateitems)
@@ -323,7 +318,7 @@ def main():
                     for s, t, u in zip(statenames, stateitems, range(len(stateitems))):
                         dest = Path(target, s)
                         dest.mkdir(exist_ok=True)
-                        if args.sequential is True:
+                        if args.animated > 0:
                             report_frames = (
                                 report_progress(
                                     progress_str(n, total, bsv3_file.stem, "bsv3"),
@@ -351,7 +346,7 @@ def main():
                             animation.set_type(
                                 GValue.array_int_type,
                                 "delay",
-                                [args.sequential_delay for _ in range(framenumber)],
+                                [args.animated for _ in range(framenumber)],
                             )
 
                             animation.write_to_file(  # type: ignore
