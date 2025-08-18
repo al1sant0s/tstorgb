@@ -99,8 +99,8 @@ tstorgb --search_zip --animated 33 --output_extension webp path/to/Images path/t
 
 ## Image quality
 
-For lossy image formats like jpeg, the --image_quality argument determines the level of overal quality of the image.
-Its values go from 1 to 100. The following will produce a webp (in lossy mode) with 95% of quality.
+For lossy image formats like jpeg, the --image_quality option determines the level of overral quality of the images.
+Its values can go from 1 to 100. The following will produce a webp (in lossy mode) with 95% of quality.
 ```
 tstorgb --search_zip --image_quality 95 --output_extension web path/to/Images path/to/sprites
 ```
