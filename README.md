@@ -99,10 +99,10 @@ tstorgb --search_zip --animated 33 --output_extension webp path/to/Images path/t
 
 ## Image quality
 
-For lossy image formats like jpeg, the --image_quality option determines the level of overral quality of the images.
+For lossy image formats like jpeg, the --quality option determines the level of overral quality of the images.
 Its values can go from 1 to 100. The following will produce a webp (in lossy mode) with 95% of quality.
 ```
-tstorgb --search_zip --image_quality 95 --output_extension web path/to/Images path/to/sprites
+tstorgb --search_zip --quality 95 --output_extension web path/to/Images path/to/sprites
 ```
 
 ## Grouping images
@@ -166,24 +166,9 @@ tstorgb --subsampling 50 path/to/Images path/to/Sprites
 
 Here is a list of some options with their correspondent short options.
 
-* --search_zip [-z]
+* --animated [-a]
 ```shell
-tstorgb -z path/to/Images path/to/sprites
-```
-
-* --image_quality [-q]
-```shell
-tstorgb -q 95 path/to/Images path/to/sprites
-```
-
-* --output_extension [-e]
- ```shell
-tstorgb -e webp path/to/Images path/to/sprites
-```
-
-* --group [-g]
-```shell
-tstorgb -g path/to/Images path/to/sprites
+tstorgb -z -a 33 -e webp path/to/Images path/to/sprites
 ```
 
 * --delete [-d]
@@ -191,15 +176,29 @@ tstorgb -g path/to/Images path/to/sprites
 tstorgb -d path/to/Images path/to/sprites
 ```
 
-
 * --first_only [-f]
 ```shell
 tstorgb --first_ony path/to/rgb_dir path/to/destination
 ```
 
-* --animated [-a]
+* --group [-g]
 ```shell
-tstorgb -z -a 33 -e webp path/to/Images path/to/sprites
+tstorgb -g path/to/Images path/to/sprites
+```
+
+* --image_quality [-q]
+```shell
+tstorgb -q 95 path/to/Images path/to/sprites
+```
+
+* --extension [-e]
+ ```shell
+tstorgb -e webp path/to/Images path/to/sprites
+```
+
+* --search_zip [-z]
+```shell
+tstorgb -z path/to/Images path/to/sprites
 ```
 
 * --subsampling [-s]
