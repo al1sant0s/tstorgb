@@ -69,9 +69,9 @@ def get_frama_data(bsv3_file, bytepos, cells_imgs, is_alpha, subsample_factor, b
                 index = int.from_bytes(f.read(2), byteorder="little", signed=False)
 
                 # Get top left corner.
-                tlc[i][..., j] = np.round(np.frombuffer(
+                tlc[i][..., j] = np.frombuffer(
                     f.read(8), dtype=np.float32, count=2
-                ).transpose() * subsample_factor)
+                ).transpose() * subsample_factor
 
                 # Get coefficients for the affine matrix.
                 # [sx rx]
@@ -97,8 +97,12 @@ def get_frama_data(bsv3_file, bytepos, cells_imgs, is_alpha, subsample_factor, b
                     alpha[i][j] = 255
 
                 # Process subcells.
-                canvas_img = Image.black(cells_imgs[index].width + 1, cells_imgs[index].height, bands = 4)
-                subcells_imgs[i][j] = canvas_img.copy(interpretation="srgb").composite2(cells_imgs[index], "over", x = 1, y = 0)
+                if affine_matrix[i][j, 0, 0] < 0:
+                    canvas_img = Image.black(cells_imgs[index].width + 2, cells_imgs[index].height, bands = 4)
+                    subcells_imgs[i][j] = canvas_img.copy(interpretation="srgb").composite2(cells_imgs[index], "over", x = 2, y = 0)
+                else:
+                    subcells_imgs[i][j] = cells_imgs[index]
+
 
                 # Apply alpha value.
                 subcells_imgs[i][j] *= [1, 1, 1, alpha[i][j] / 255]
