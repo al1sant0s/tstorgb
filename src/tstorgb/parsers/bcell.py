@@ -77,7 +77,7 @@ def bcell_10(bcell_file):
     d.sort()
 
     canvas_dim = np.array(d[..., -1] - c[..., 0], dtype=int)
-    canvas_img = Image.black(canvas_dim[0], canvas_dim[1], bands = 4).copy(interpretation="srgb")
+    canvas_img = Image.black(canvas_dim[0], canvas_dim[1]).colourspace("srgb").addalpha() * 0
 
     # Correct coordinates.
     tlc = [tlc[i] - np.array(c[..., 0]).reshape(2, 1) for i in range(blocks)]
@@ -150,7 +150,7 @@ def bcell_11(bcell_file):
     d.sort()
 
     canvas_dim = np.array(d[..., -1] - c[..., 0], dtype=int)
-    canvas_img = Image.black(canvas_dim[0], canvas_dim[1], bands = 4).copy(interpretation="srgb")
+    canvas_img = Image.black(canvas_dim[0], canvas_dim[1]).colourspace("srgb").addalpha() * 0
 
     # Correct coordinates.
     tlc = [tlc[i] - np.array(c[..., 0]).reshape(2, 1) for i in range(blocks)]
@@ -240,12 +240,12 @@ def bcell_13(bcell_file, is_alpha, disable_shadows=False):
 
                     # Add shadows.
                     if frames[i][j] == "SHADOW" and not disable_shadows:
-                        subcells_imgs[i].append(shadow_img.copy())  # type: ignore
+                        subcells_imgs[i].append(shadow_img)  # type: ignore
 
                     # Anything else is not supported.
                     else:
                         # Create empty image
-                        subcells_imgs[i].append(null_img.copy())  # type: ignore
+                        subcells_imgs[i].append(null_img)  # type: ignore
                         f.read(28)
                         frames[i][j] = "null"
                         continue
@@ -318,7 +318,7 @@ def bcell_13(bcell_file, is_alpha, disable_shadows=False):
         d.sort()
 
         canvas_dim = np.array(np.ceil(d[..., -1] - c[..., 0]), dtype=int)
-        canvas_img = Image.black(canvas_dim[0], canvas_dim[1], bands = 4).copy(interpretation="srgb")
+        canvas_img = Image.black(canvas_dim[0], canvas_dim[1]).colourspace("srgb").addalpha() * 0
 
         # Correct coordinates.
         tlc = [tlc[i] - np.array(c[..., 0]).reshape(2, 1) for i in range(blocks)]

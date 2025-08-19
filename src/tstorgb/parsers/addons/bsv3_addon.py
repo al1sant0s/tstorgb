@@ -98,8 +98,8 @@ def get_frama_data(bsv3_file, bytepos, cells_imgs, is_alpha, subsample_factor, b
 
                 # Process subcells.
                 if affine_matrix[i][j, 0, 0] < 0:
-                    canvas_img = Image.black(cells_imgs[index].width + 2, cells_imgs[index].height, bands = 4)
-                    subcells_imgs[i][j] = canvas_img.copy(interpretation="srgb").composite2(cells_imgs[index], "over", x = 2, y = 0)
+                    subcells_imgs[i][j] = Image.black(cells_imgs[index].width + 2, cells_imgs[index].height).colourspace("srgb").addalpha() * 0
+                    subcells_imgs[i][j] = subcells_imgs[i][j].composite2(cells_imgs[index], "over", x = 2, y = 0)
                 else:
                     subcells_imgs[i][j] = cells_imgs[index]
 
@@ -157,10 +157,10 @@ def get_states(bsv3_file, bytepos):
         return (statenames, stateitems)
 
 
-def frame_iterator(canvas_dim, interpretation, subcells_imgs, tlc, subsample_factor):
+def frame_iterator(canvas_dim, subcells_imgs, tlc, subsample_factor):
 
     # Create a canvas.
-    canvas_img = Image.black(canvas_dim[0], canvas_dim[1], bands = 4).copy(interpretation=interpretation)
+    canvas_img = Image.black(canvas_dim[0], canvas_dim[1]).colourspace("srgb").addalpha() * 0
 
     for i, subcells in zip(range(len(subcells_imgs)), subcells_imgs):
         if len(subcells) == 0:

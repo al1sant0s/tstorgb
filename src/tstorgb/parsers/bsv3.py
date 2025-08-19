@@ -71,17 +71,17 @@ def bsv3_parser(bsv3_file, subsample_factor):
                     frames_items_tlc[i] = np.zeros((2, subcells))
                     for j in range(subcells):
                         index = int.from_bytes(f.read(2), byteorder="little", signed=False)
-                        frames_items[i][j] = subcells_imgs[0][index].copy()
+                        frames_items[i][j] = subcells_imgs[0][index]
                         frames_items_tlc[i][..., j] = tlc[0][..., index]
 
                 # Build frames from gathered data.
                 frames = frame_iterator(
-                    canvas_dim, rgb_img.interpretation, frames_items, frames_items_tlc, subsample_factor
+                    canvas_dim, frames_items, frames_items_tlc, subsample_factor
                 )
             else:
                 # Build frames from gathered data.
                 frames = frame_iterator(
-                    canvas_dim, rgb_img.interpretation, subcells_imgs, tlc, subsample_factor
+                    canvas_dim, subcells_imgs, tlc, subsample_factor
                 )
 
             # Get states info.
