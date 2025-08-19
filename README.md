@@ -14,7 +14,7 @@ It uses [**libvips**](https://www.libvips.org/) to perform the conversions.
 First, make sure you install [**libvips**](https://www.libvips.org/install.html) in your system.
 
 > Attention, windows users!
-> 
+>
 > When downloading libvips make sure to update the [**PATH environment variable**](https://learn.microsoft.com/en-us/previous-versions/office/developer/sharepoint-2010/ee537574(v=office.14)) to point to the **vips-x.y.z/bin** directory (remember you have to specify the full path). That is after you unzip the downloaded file as instructed in the installation page.
 If you don't set the PATH environment variable correctly, the tool will not find the required dlls and thus it won't work.
 
@@ -56,16 +56,16 @@ The images will be saved in subdirectories within the destination directory. Eac
 
 ## Arguments
 
-If you have your rgb files inside a zip file named '1', you can pass the --search_zip argument to deal with the extraction.
+If you have your rgb files inside a zip file named '1', you can pass the --zip argument to deal with the extraction.
 
 ```
-tstorgb --search_zip path/to/rgb_dir path/to/destination
+tstorgb --zip path/to/rgb_dir path/to/destination
 ```
 
-If you prefer to use a file extension other than png, you can use the --output_extension argument.
+If you prefer to use a file extension other than png, you can use the --extension argument.
 
 ```
-tstorgb --search_zip --output_extension webp path/to/rgb_dir path/to/destination
+tstorgb --zip --extension webp path/to/rgb_dir path/to/destination
 ```
 
 ## Multiple directories
@@ -73,19 +73,19 @@ tstorgb --search_zip --output_extension webp path/to/rgb_dir path/to/destination
 An example specifying multiple directories as input and saving the results in the sprites directory.
 
 ```
-tstorgb --search_zip path/to/Downloads/rgb_files path/to/Images/rgb_folder path/to/Images/another_rgb_folder path/to/sprites  
+tstorgb --zip path/to/Downloads/rgb_files path/to/Images/rgb_folder path/to/Images/another_rgb_folder path/to/sprites
 ```
 
 If you want to search for the rgb files recursively in every subdirectory bellow a specific directory, give the root directory as input. The following example will convert all the rgb files within the 'Images' directory,
 including the 'rgb_folder' and 'another_rgb_folder' subdirectories.
 
 ```
-tstorgb --search_zip path/to/Downloads/rgb_files path/to/Images path/to/sprites
+tstorgb --zip path/to/Downloads/rgb_files path/to/Images path/to/sprites
 ```
 
 ## Bsv3 and Bcell files
 
-To process bsv3 and bcell files just keep them in the same directory as their correspondent rgb files. The correspondent files have the same names before the extension, like building.rgb and building.bsv3 or character_does_action_image_x.rgb and character_does_action.bcell. As long as they are in the same directories, they'll be automatically processed. You can prevent their processing by passing the flags --disable_bsv3 and –disable_bcell. 
+To process bsv3 and bcell files just keep them in the same directory as their correspondent rgb files. The correspondent files have the same names before the extension, like building.rgb and building.bsv3 or character_does_action_image_x.rgb and character_does_action.bcell. As long as they are in the same directories, they'll be automatically processed. You can prevent their processing by passing the flags --disable_bsv3 and –disable_bcell.
 
 ## Animated images
 
@@ -94,15 +94,15 @@ The value provided to it must be a positive integer representing the delay in mi
 To produce animated images with a refresh rate of 30 fps, for example:
 
 ```
-tstorgb --search_zip --animated 33 --output_extension webp path/to/Images path/to/sprites
+tstorgb --zip --animated 33 --extension webp path/to/Images path/to/sprites
 ```
 
 ## Image quality
 
 For lossy image formats like jpeg, the --quality option determines the level of overral quality of the images.
-Its values can go from 1 to 100. The following will produce a webp (in lossy mode) with 95% of quality.
+Its values can go from 0 to 100. The following will produce a webp (in lossy mode) with 95% of quality.
 ```
-tstorgb --search_zip --quality 95 --output_extension web path/to/Images path/to/sprites
+tstorgb --zip --quality 95 --extension web path/to/Images path/to/sprites
 ```
 
 ## Grouping images
@@ -143,16 +143,16 @@ tstorgb --delete path/to/rgb_dir path/to/destination
 
 ## Produce only the first frame
 
-Pass the --first_only option to produce only the first frame for the bsv3 files.
+Pass the --first option to produce only the first frame for the bsv3 files.
 
 ```
-tstorgb --first_ony path/to/rgb_dir path/to/destination
+tstorgb --first path/to/rgb_dir path/to/destination
 ```
 
 ## Select the sub-sampling level
 
 The sub-sampling level impacts directly on image accuracy as well as computational power. Contrary to what the name may imply,
-here sub-sampling works with the following logic: the greater the value the better the images will look at the price of requiring more processing from the machine. 
+here sub-sampling works with the following logic: the greater the value the better the images will look at the price of requiring more processing from the machine.
 Small values like 1 yields images the fastest but can result in unexpected artifacts like gaps in the images.
 The following example utilizes a level of 50 to produce good looking images.
 
@@ -176,9 +176,14 @@ tstorgb -z -a 33 -e webp path/to/Images path/to/sprites
 tstorgb -d path/to/Images path/to/sprites
 ```
 
-* --first_only [-f]
+* --extension [-e]
+ ```shell
+tstorgb -e webp path/to/Images path/to/sprites
+```
+
+* --first [-f]
 ```shell
-tstorgb --first_ony path/to/rgb_dir path/to/destination
+tstorgb -f path/to/rgb_dir path/to/destination
 ```
 
 * --group [-g]
@@ -186,22 +191,17 @@ tstorgb --first_ony path/to/rgb_dir path/to/destination
 tstorgb -g path/to/Images path/to/sprites
 ```
 
-* --image_quality [-q]
+* --quality [-q]
 ```shell
 tstorgb -q 95 path/to/Images path/to/sprites
-```
-
-* --extension [-e]
- ```shell
-tstorgb -e webp path/to/Images path/to/sprites
-```
-
-* --search_zip [-z]
-```shell
-tstorgb -z path/to/Images path/to/sprites
 ```
 
 * --subsampling [-s]
 ```shell
 tstorgb -s 50 path/to/Images path/to/Sprites
+```
+
+* --zip [-z]
+```shell
+tstorgb -z path/to/Images path/to/sprites
 ```

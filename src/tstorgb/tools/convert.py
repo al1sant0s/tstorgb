@@ -28,7 +28,7 @@ def main():
 
     parser.add_argument(
         "-z",
-        "--search_zip",
+        "--zip",
         help="If enabled, zip files named '1' within specified directories will be extracted.",
         action="store_true",
     )
@@ -61,14 +61,14 @@ def main():
 
     parser.add_argument(
         "-f",
-        "--first_only",
+        "--first",
         help="Produce the first frame only.",
         action="store_true",
     )
 
     parser.add_argument(
         "-q",
-        "--image_quality",
+        "--quality",
         help="Percentage specifying image quality.",
         default=100,
         type=int,
@@ -84,7 +84,7 @@ def main():
 
     parser.add_argument(
         "-e",
-        "--output_extension",
+        "--extension",
         help="""
         Image format used for the exported images.
         You can choose between most of libvips supported image formats like png, webp, jpg, etc.
@@ -147,7 +147,7 @@ def main():
     )
 
     # Get total of files to convert and extract zipped files.
-    if args.search_zip:
+    if args.zip is True:
         for directory in directories:
             for item in directory.glob("**/1"):
                 if is_zipfile(item) is True:
@@ -225,8 +225,8 @@ def main():
                         animation_frames = (
                             Image.new_from_buffer(  # type: ignore
                                 next(frames).write_to_buffer(  # type: ignore
-                                    f".{args.output_extension}",
-                                    Q=args.image_quality,
+                                    f".{args.extension}",
+                                    Q=args.quality,
                                 ),
                                 options="",
                                 access="sequential",
@@ -247,9 +247,9 @@ def main():
                         animation.write_to_file(  # type: ignore
                             Path(
                                 target,
-                                f"{bcell_file.stem}.{args.output_extension}",
+                                f"{bcell_file.stem}.{args.extension}",
                             ),
-                            Q=args.image_quality,
+                            Q=args.quality,
                         )
 
                     else:
@@ -257,9 +257,9 @@ def main():
                             next(frames).write_to_file(  # type: ignore
                                 Path(
                                     target,
-                                    f"{i}.{args.output_extension}",
+                                    f"{i}.{args.extension}",
                                 ),
-                                Q=args.image_quality,
+                                Q=args.quality,
                             )
                             report_progress(
                                 progress_str(n, total, bcell_file.stem, "bcell"),
@@ -330,8 +330,8 @@ def main():
                             animation_frames = (
                                 Image.new_from_buffer(  # type: ignore
                                     next(frames).write_to_buffer(  # type: ignore
-                                        f".{args.output_extension}",
-                                        Q=args.image_quality,
+                                        f".{args.extension}",
+                                        Q=args.quality,
                                     ),
                                     options="",
                                     access="sequential",
@@ -352,20 +352,20 @@ def main():
                             animation.write_to_file(  # type: ignore
                                 Path(
                                     dest,
-                                    f"{s}.{args.output_extension}",
+                                    f"{s}.{args.extension}",
                                 ),
-                                Q=args.image_quality,
+                                Q=args.quality,
                             )
 
                         else:
                             # Save only first frame if requested.
-                            if args.first_only is True:
+                            if args.first is True:
                                 next(frames).write_to_file(  # type: ignore
                                     Path(
                                         dest,
-                                        f"0.{args.output_extension}",
+                                        f"0.{args.extension}",
                                     ),
-                                    Q=args.image_quality,
+                                    Q=args.quality,
                                 )
                                 # Discard the rest of the frames.
                                 for _ in range(t - 1):
@@ -381,9 +381,9 @@ def main():
                                     next(frames).write_to_file(  # type: ignore
                                         Path(
                                             dest,
-                                            f"{i}.{args.output_extension}",
+                                            f"{i}.{args.extension}",
                                         ),
-                                        Q=args.image_quality,
+                                        Q=args.quality,
                                     )
                                     report_progress(
                                         progress_str(n, total, bsv3_file.stem, "bsv3"),
@@ -441,8 +441,8 @@ def main():
                     continue
 
                 rgb_image.write_to_file(  # type: ignore
-                    Path(target, f"{rgb_file.stem}.{args.output_extension}"),
-                    Q=args.image_quality,
+                    Path(target, f"{rgb_file.stem}.{args.extension}"),
+                    Q=args.quality,
                 )
 
                 if args.delete is True:
